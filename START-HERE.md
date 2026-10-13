@@ -47,6 +47,16 @@ cp tools/realm-prebuilds/linux-x64/realm.node node_modules/realm/prebuilds/node/
 افتح `app-preview.html` في أي متصفح. المحتوى حقيقي (من الحزم المُعتمدة نفسها)،
 لكنها **معاينة ثابتة**: Realm والتنزيلات والاستماع تعمل داخل التطبيق على الجهاز فقط.
 
+## تشغيل التطبيق نفسه على الويب (بعد `npm install`)
+
+```bash
+NODE_OPTIONS=--max-old-space-size=3000 npx expo export --platform web
+cd dist && python3 -m http.server 8081 --bind 0.0.0.0
+```
+
+يُنتج `dist/` (حزمة JS ≈71MB لأن حزمة التفسير 23MB مُضمَّنة) — مُجرَّب في
+2026-10-13: التصدير ينجح والتطبيق يُحمَّل في المتصفح.
+
 ## الحالة والمتبقي
 
 - ✅ المراحل 0–5 مكتملة ومُختبَرة: `npm run test:realm` = **155/155** (24+24+30+26+33+18).
