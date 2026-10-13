@@ -1,0 +1,10239 @@
+# دليل التسليم الشامل — رفيق القرآن الكريم
+
+> **غرض هذا الملف:** تسليم كامل للمشروع لبدء محادثة تنفيذ جديدة دون فقد أي سياق.
+> يحتوي: حالة المشروع + خطوات التشغيل + جميع الشاشات/التبويبات + الخطوات المكتملة والمتبقية
+> + **كود كل ملف برمجي كاملًا** + فهرس ملفات البيانات (ببصمات SHA-256 — محتواها في الـ ZIP).
+
+- **المشروع:** رفيق القرآن الكريم — تطبيق Expo/React Native (RTL، عربي افتراضيًا)
+- **حقوق المصمم والمطور:** إيهاب عجور أبو الأمير
+- **تاريخ هذا التسليم:** 2026-10-12
+- **آخر مرحلة مغلقة:** المرحلة 5 — الأذكار (commit `9b98f3b`)
+- **حالة الاختبارات:** `npm run test:realm` = **155/155** (24+24+30+26+33+18) — TSC نظيف
+
+---
+
+## 1) سجل المراحل (كلها مغلقة ومُختبَرة ومُلتقطة في git)
+
+| المرحلة | المحتوى | الاختبارات | commit |
+|---|---|---|---|
+| 0/1 | البنية: نظام التصميم (3 سمات) + الخطوط (Tajawal/Amiri Quran) + التنقل (5 تبويبات) + RTL + الإعدادات + «حول» + 4 مستودعات + Realm | 48 | `cd21d56` |
+| معاينة ويب | منصة فحص react-native-web + خادم ساكن + محاكاة localStorage خلف واجهة Realm (اكتشفت إصلاحات حقيقية) | — | `42e4e54` |
+| 2 | المصحف: Tanzil Uthmani v1.1 معتمدة (11 فحصًا بايت-ببايت) + فهرس 114 + قارئ + آخر موضع + أدوات الآية | 78 إجمالي | `e014745` |
+| 3 | المكتبة: جلسات القراءة R1–R6 + سجل القراءة + الورد من DailyProgress + تسمية/مفضلة/ملاحظات | 104 إجمالي | `daea9b7` |
+| 4 | التفسير (ابن كثير + البغوي — 6205+6236 آية) + 31 فجوة موثقة «لا يتوفر» + شارة العثماني + 4 لوحات مريحة للعين + ترحيل Realm 1→2 | 137 إجمالي | `8d1fab6` |
+| 5 | الأذكار: حصن المسلم (345 ذكرًا/135 فئة) بتحقق مزدوج (12/12 قرآن==Tanzil + 29/34 MIT) + عدّادات Realm + شاشة كاملة | **155 إجمالي** | `9b98f3b` |
+
+---
+
+## 2) خطوات التشغيل في بيئة جديدة (مُجرَّبة)
+
+```bash
+cd quran-companion
+npm install
+
+# اختبارات (Node + Realm حقيقي) — 155 فحصًا في 6 ملفات:
+npm run test:realm            # يجمع tsconfig.test.json ثم يشغّل الحزم الستة
+
+# فحص أنواع كامل المشروع (يتطلب ذاكرة كبيرة بسبب حزم JSON):
+NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit -p tsconfig.json
+
+# معاينة الويب:
+NODE_OPTIONS=--max-old-space-size=6144 npx expo export --platform web
+cd dist && python3 -m http.server 8081 --bind 0.0.0.0
+
+# QA بالمتصفح (اختياري):
+cd /tmp && mkdir pwtest && cd pwtest && npm i playwright && npx playwright install chromium && npx playwright install-deps chromium
+```
+
+**ملاحظات بيئة حرجة (تُتكرر بلا استئذان):**
+1. `node_modules` لا يُحفظ في لقطات السنبورك → `npm install` في كل جلسة جديدة.
+2. `tsc` و`expo export` يحتاجان `NODE_OPTIONS=--max-old-space-size=6144` (حزمة tafsir 23MB) — على أجهزة 2GB قد لا تكفي 6144؛ الحل الآمن: heap 1152–1536 أو تشغيل على جهاز أكبر. `tsconfig.json` يستثني `dist` (إصلاح حقيقي — كان يُفحص مخرج البناء 72MB).
+3. معرّف git (`user.name/email`) محلي في `.git/config` وقد لا يُحفظ — عند «Author identity unknown» أعد ضبطه من آخر commit: `git config user.name "$(git log -1 --format=%an)"` ونفسه لـ `user.email`.
+4. Realm-js v20: `RealmCtor.open` فقط، الترحيل عبر `onMigration`، بلا `write()`/`update()` داخل الترحيل (الكتابة ضمن معاملة ضمنية)، لا `realm.object(type,key)` — الجلب بـ `objects(type).filtered('id = $0', key)`.
+5. اختبارات Realm لا تنتهي من نفسها → `process.exit(0)` صريح في نهاية كل ملف اختبار.
+6. سكربت `test:realm` ينسخ حزمي `quran-data.json` و`adhkar-data.json` إلى `.test-build/content/` بعد التجميع — ملاحظة: `tsc` مع `resolveJsonModule` **ينسخ تلقائيًا** أي JSON مستورد (ضمن rootDir) إلى `.test-build/` بنفس البنية، لذا الخطوة زائدة/احتياطية. إن أضفت حزمة JSON جديدة مستوردة من `content/` تأكد أنها تظهر في `.test-build/content/` بعد `tsc`.
+
+---
+
+## 3) التبويبات والشاشات (خريطة كاملة)
+
+```
+App (إقلاع: قاعدة البيانات ← Metadata المحتوى ← جلسات مفتوحة ← الخطوط ← السمة)
+└── RootNavigator — شريط سفلي (5 تبويبات) — RTL إجباري (I18nManager.forceRTL)
+    ├── 1) الرئيسية HomeScreen ........... تحية + «تابع قراءتك» (موضع حقيقي) + الورد اليومي X/20 الفعلي (R5) + اختصارات
+    ├── 2) المصحف MushafStack ............ فهرس 114 سورة + بحث موثق
+    │       └── SurahScreen ............... قارئ عثماني (Amiri Quran) + أدوات الآية:
+    │            علامة/مفضلة/ملاحظة/نسخ/مشاركة + «التفسير» (مودال: ابن كثير/البغوي/«لا يتوفر» للنقص الموثق)
+    │            + شارة «الرسم العثماني» + 4 لوحات خلفية (يتبع السمة/رَقّ/ليل/غابة)
+    │            + جلسة قراءة (R1–R6) + «الانتقال إلى آية» (إصلاح ويب: تمرير تكراري حتى رسم الهدف)
+    ├── 3) الأذكار AdhkarScreen .......... 135 فئة (بحث) + 345 ذكرًا بعدّادات (سقف من المصدر)
+    │            + ملخص الفئة اليوم + تصفير + النصوص القرآنية من Tanzil المعتمدة
+    ├── 4) الاستماع AudioScreen .......... هيكل فقط — المحتوى: المرحلة 6 (معلّق حتى اعتماد مصدر تلاوة)
+    └── 5) مكتبتي LibraryStack
+          ├── العلامات المرجعية (تسمية/حذف — بلا تكرار بوابة 06)
+          ├── المفضلة (نص الآية الفعلي العثماني + التاريخ)
+          ├── الملاحظات (تصفية بحث فوري + ملاحظات مرتبطة)
+          ├── سجل القراءة (ملخص اليوم + قاعدة R5 + قائمة الجلسات)
+          ├── الخطط (هيكل — مرحلة 6) · التنزيلات (هيكل — مرحلة 6)
+          ├── الإعدادات (مظهر فاتح/داكن/دافئ + خط 75–150٪ + الورد + «صفحة المصحف» 4 لوحات)
+          └── حول التطبيق (حقوق إيهاب عجور أبو الأمير + مصادر المحتوى والتراخيص)
+```
+
+---
+
+## 4) الخطوات المكتملة (بلا تدقيق — كلها مُختبَرة وموثقة في STAGE-PROGRESS.md)
+
+- **بوابة 05 (المحتوى)** مطبقة على كل الحزم: مصدر موثوق + إصدار + ترخيص + بصمة SHA-256 + فحص استيراد؛ **لا نص يولّده نموذج** (قرآن/تفسير/أذكار/أحاديث).
+- **حزمة المصحف:** Tanzil Uthmani v1.1 (CC-BY 3.0) — 6236 آية — بايت-ببايت (11 فحصًا) + وصفية 1.0.
+- **حزمة التفسير:** quran.com v4 `by_chapter?per_page=300` — ابن كثير (id 14: 6205 آية + **31 فجوة مصدر موثقة** → واجهة «لا يتوفر» — لا اختلاق) + البغوي (id 94: 6236) — 33 فحصًا.
+- **حزمة الأذكار:** osamayy/azkar-db @ fbdfa017782c (نص حصن المسلم — ملكية عامة، رخصة المستوديو غائبة = مخاطرة موثقة) — 345/135 — تحقق: 12/12 نصوص قرآنية == Tanzil + 29/34 (≥85٪) مع MIT مستقل + 3 فروق مصاغة و3 اختلاف تكرارات **موثقة في ADHKAR-IMPORT-REPORT.md** — 11 فحصًا.
+- **قاعدة الأذكار (R1–R6):** موثقة في `reading-session-repository.ts` (R5: الورد من الجلسات المنتهية اليوم فقط — قابلة للمراجعة بقرار).
+- **Realm v2:** مخطط المستخدم (AppSettings + Bookmark + FavoriteAyah + PersonalNote + ReadingPlan + ReadingSession + DailyProgress + DhikrProgress + DownloadRecord + ContentMetadata) + ترحيل حقيقي 1→2 مُختبَر على Realm حقيقي.
+- **لا تكرار (بوابة 06):** كل قوائم المكتبة بمفاتيح فريدة من الحزمة (مختبر 3×).
+- **إصلاحات حقيقية مكتسبة:** Crash الإقلاع (BootScreen خارج SafeAreaProvider)، دلالية مرجع Realm الحي، سباق جلسة/رئيسية (إعادة تحميل 700ms)، «الانتقال إلى آية» على الويب (تفرّغ FlatList — حل تكراري)، خيط الأرقام الهندية (كان 9 حروف بدل 10 — ٣ مفقود + فحص انحداري على المصدر)، فحص tsc شمل dist.
+
+---
+
+## 5) الخطوات المتبقية (بترتيب الأولوية)
+
+1. **معاني الكلمات (قرار المستخدم: مؤجلة)** — لا زر ولا بيانات (لا وهم). عند العودة: بحث عن مصدر موثوق قابل للأتمتة (alquran.cloud بلا مسارات كلمات؛ quran.com `by_ayah` = 503 دائمًا) → عند الاعتماد: حزمة ببوابة 05 + زر في أدوات الآية. البنية جاهزة (نصوص الكلمات موجودة في `getAyahWords`).
+2. **المرحلة 6 — الاستماع:** أولًا اعتماد مصدر تلاوة مرخّص (نفس سياسة الأذكار: بحث ثم قرار المستخدم) → مشغل + آخر موضع استماع + تكامل مع الورد إن رُغب.
+3. **الخطط/التنزيلات (مرحلة 6):** الهيكلان موجودان (`plans-screen`/`downloads-screen`) بسجلات فارغة.
+4. **نمط «صفحات المصحف» (readingMode):** الحقل موجود في المخطط؛ العرض المتتابع فقط حاليًا.
+5. **التحقق على جهاز حقيقي (تأجيل موثق متواصل):** تباين WCAG + أحجام لمس + Share Sheet — بيئة السنبورك بلا SDK/Java 17/RAM كافٍ.
+6. **تأكيد صوتي/تلاوة:** خارج النطاق (بقرار سابق) — مرتبط بالمرحلة 6.
+7. **قاعدة R5 قابلة للمراجعة:** إن أردت احتساب الجلسة المفتوحة لحظيًا في الورد — تغيير سطر واحد موثق في `reading-session-repository.ts`.
+
+---
+
+## 6) قرارات مستخدم سارية (لا تُعاد بدون سؤال)
+
+- القرآن بالعرض العثماني حصريًا؛ ألوان قراءة مريحة؛ أزرار الآية تتضمن التفسير (نفّذ) ومعاني الكلمات (مؤجلة).
+- لا توليد نصوص دينية بنماذج لغوية أبدًا؛ لا أزرار/بيانات وهمية؛ لا حساب سحابي إجباري؛ بدون حساب شخصي؛ أولًا-أوفلاين؛ RTL وعربي افتراضيًا.
+- حقوق التطوير: **إيهاب عجور أبو الأمير** (شاشة حول التطبيق + LICENSE + هذا الملف).
+- الأذكار: اعتمد osamayy/azkar-db + تحقق MIT (قرار 2026-10-12).
+- تحديث `STAGE-PROGRESS.md` بعد كل مرحلة (قالب 08) + مرحلة واحدة في كل مرة.
+
+---
+
+## 7) فهرس ملفات البيانات (في الـ ZIP — لا يُدرج محتواها هنا)
+
+| الملف | الحجم | SHA-256 (المبثوث) | الوصف |
+|---|---|---|---|
+| `content/quran-data.json` | 2.8MB | `81b5e6e5f9b7e118…` | حزمة المصحف المعتمدة: 114 سورة + 6236 آية (عثماني + بحث + وصفية) — Tanzil v1.1 |
+| `content/quran-uthmani.txt` | 1.3MB | `7f30c647331a6110…` | نص Tanzil الخام (مرجع التحقق بايت-ببايت) |
+| `content/tafsir-data.json` | 22.1MB | `a94c8030cc70b6c7…` | حزمة التفسير المعتمدة (ibnkathir 6205 + baghawi 6236 + الفجوات) — 33 فحصًا |
+| `content/adhkar-data.json` | 202.3KB | `839075beea5f933d…` | حزمة الأذكار المعتمدة (345/135 + manifest + قواعد) — 11 فحصًا |
+| `content/refs/adhkar/azkar_obj.json` | 180.0KB | `a8daa71a118a9a65…` | خام osamayy/azkar-db (المصدر الرئيسي للأذكار) |
+| `content/refs/adhkar/morning_seen_ar.json` | 77.7KB | `9e0dd6a10d26ddc0…` | خام Seen-Arabic (تحقق MIT — صباح/مساء) |
+| `package-lock.json` | 255.7KB | `4189d79d9b8ea65a…` | قفل الاعتمادات (npm ci) |
+
+**`content/refs/tafsir/`:** ibnkathir/: 114 ملفًا خامًا (18.9MB) و baghawi/: 114 ملفًا خامًا (9.9MB) + `manifest.sha256` (مدرج كاملًا بالأسفل) — تنزيلات خام quran.com (114 سورة × مصدرين).
+
+**`assets/`:** `assets/android-icon-background.png — 17.1KB`، `assets/android-icon-foreground.png — 76.9KB`، `assets/android-icon-monochrome.png — 4.0KB`، `assets/favicon.png — 1.1KB`، `assets/icon.png — 384.3KB`، `assets/splash-icon.png — 17.1KB`، `assets/fonts/AmiriQuran.ttf — 164.0KB`، `assets/fonts/Tajawal-Bold.ttf — 58.6KB`، `assets/fonts/Tajawal-Medium.ttf — 60.8KB`، `assets/fonts/Tajawal-Regular.ttf — 58.9KB` (خطوط Tajawal OFL + Amiri Quran OFL + أيقونات).
+
+**`preview-screenshots/`:** 32 لقطة QA (00–29) — أدلة المراحل على الويب.
+
+**`android/` ثنائيات:** 33 ملفًا (أيقونات/splash/gradle-wrapper/keystore) — كلها في الـ ZIP.
+
+---
+
+## 8) كل الملفات البرمجية بكودها الكامل
+
+> ترتيب: الجذر ← src (نظام التصميم/قاعدة البيانات/المستودعات/الشاشات) ← tests ← scripts ← docs ← android (إعدادات) ← تقارير المحتوى النصية.
+> كل ملف كما هو حرفيًا في المستودع عند commit `9b98f3b`.
+
+### 8.1) الجذر (App/إعدادات المشروع)
+
+#### `App.tsx`  ·  4.3KB
+
+```tsx
+/**
+ * نقطة دخول التطبيق — تسلسل الإقلاع (المرحلة 1):
+ * 1) فتح قاعدة بيانات المستخدم (Realm) — الفشل يعرض رسالة واضحة ولا يُخفى.
+ * 2) تحميل الخطوط المضمّنة (يعمل دون اتصال).
+ * 3) سمة + تنقل: الرئيسية | المصحف | الأذكار | الاستماع | مكتبتي
+ */
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { openAppRealm } from './src/database/realm/realm';
+import { loadAppFonts } from './src/design-system/fonts';
+import { ThemeProvider } from './src/design-system/theme';
+import { fontFamilies, fontSizes, themes } from './src/design-system/tokens';
+import { ensureContentMetadata } from './src/features/quran/quran-content';
+import { getReadingSessionRepository } from './src/repositories/reading-session-repository';
+import { RootNavigator } from './src/app/root-navigator';
+import { buildNavTheme } from './src/app/navigation-theme';
+
+type Phase =
+  | { state: 'loading' }
+  | { state: 'error'; message: string }
+  | { state: 'ready' };
+
+export default function App() {
+  const [phase, setPhase] = useState<Phase>({ state: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await openAppRealm();
+        // تسجيل Metadata المحتوى (سجل واحد ثابت) + فحص بنيوي خفيف للحزمة
+        ensureContentMetadata();
+        // R4: إنهاء أي جلسة مفتوحة من تشغيل سابق (انغلاق/سقوط) — دون تكرار سجلات
+        getReadingSessionRepository().closeOpenSessions();
+        await loadAppFonts();
+        if (!cancelled) setPhase({ state: 'ready' });
+      } catch (e) {
+        if (cancelled) return;
+        const message =
+          e && typeof e === 'object' && 'message' in e
+            ? String((e as { message: unknown }).message)
+            : String(e);
+        setPhase({ state: 'error', message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <SafeAreaProvider>
+      {phase.state === 'error' ? (
+        <BootScreen
+          title="تعذر إقلاع التطبيق"
+          message={`حدث خطأ أثناء التهيئة: ${phase.message}`}
+        />
+      ) : phase.state === 'loading' ? (
+        <BootScreen title="رفيق القرآن الكريم" message="جارٍ التحضير…" />
+      ) : (
+        <ThemeProvider>
+          <ThemedNavigation />
+        </ThemeProvider>
+      )}
+    </SafeAreaProvider>
+  );
+}
+
+function ThemedNavigation() {
+  const theme = buildNavTheme();
+  return (
+    <>
+      <StatusBar style="auto" />
+      <NavigationContainer theme={theme}>
+        <RootNavigator />
+      </NavigationContainer>
+    </>
+  );
+}
+
+/** شاشة الإقلاع/الخطأ — قبل تهيئة السمة، تستخدم الرموز الفاتحة مباشرة */
+function BootScreen({ title, message }: { title: string; message: string }) {
+  const tokens = themes.light;
+  const isError = title === 'تعذر إقلاع التطبيق';
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: tokens.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+      }}
+    >
+      <Text
+        style={{
+          color: tokens.primary,
+          fontSize: fontSizes.xxl,
+          fontWeight: '700',
+          fontFamily: fontFamilies.uiBold,
+          textAlign: 'center',
+        }}
+      >
+        {title}
+      </Text>
+      <Text
+        style={{
+          marginTop: 12,
+          color: isError ? tokens.error : tokens.muted,
+          fontSize: fontSizes.md,
+          fontFamily: fontFamilies.ui,
+          textAlign: 'center',
+        }}
+      >
+        {message}
+      </Text>
+      <Text
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          color: tokens.muted,
+          fontSize: fontSizes.xs,
+          fontFamily: fontFamilies.ui,
+        }}
+      >
+        حقوق المصمم والمطور: إيهاب عجور أبو الأمير
+      </Text>
+    </SafeAreaView>
+  );
+}
+```
+
+#### `index.ts`  ·  851B
+
+```ts
+import { I18nManager, Platform } from 'react-native';
+import { registerRootComponent } from 'expo';
+
+import App from './App';
+
+// التطبيق عربي RTL افتراضيًا — RTL فعلي على مستوى التخطيط وليس محاذاة نص فقط (04-10)
+if (Platform.OS === 'web') {
+  // على الويب: RTL عبر سمات DOM (I18nManager لا يقلب التخطيط في متصفح الويب)
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('dir', 'rtl');
+    document.documentElement.setAttribute('lang', 'ar');
+  }
+} else {
+  I18nManager.forceRTL(true);
+}
+
+// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
+// It also ensures that whether you load the app in Expo Go or in a native build,
+// the environment is set up appropriately
+registerRootComponent(App);
+```
+
+#### `app.json`  ·  1.0KB
+
+```json
+{
+  "expo": {
+    "name": "رفيق القرآن الكريم",
+    "slug": "quran-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "qurancompanion",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ihabajour.qurancompanion"
+    },
+    "android": {
+      "package": "com.ihabajour.qurancompanion",
+      "adaptiveIcon": {
+        "backgroundColor": "#145A46",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "appVersion": "0.1.0",
+      "databaseSchemaVersion": 1,
+      "exportFormatVersion": 1,
+      "developer": "إيهاب عجور أبو الأمير"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
+```
+
+#### `package.json`  ·  1.6KB
+
+```json
+{
+  "name": "quran-companion",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-navigation/bottom-tabs": "^7.20.0",
+    "@react-navigation/native": "^7.5.0",
+    "@react-navigation/native-stack": "^7.20.0",
+    "@realm/react": "^0.20.0",
+    "expo": "~57.0.27",
+    "expo-clipboard": "~57.0.2",
+    "expo-font": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "^0.21.2",
+    "realm": "^20.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test:realm": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build/content',{recursive:true});require('fs').copyFileSync('content/quran-data.json','.test-build/content/quran-data.json');require('fs').copyFileSync('content/adhkar-data.json','.test-build/content/adhkar-data.json')\" && node .test-build/tests/realm-stage0.test.js && node .test-build/tests/repositories-stage1.test.js && node .test-build/tests/quran-stage2.test.js && node .test-build/tests/library-stage3.test.js && node .test-build/tests/tafsir-stage4.test.js && node .test-build/tests/adhkar-stage5.test.js",
+    "test:realm:clean": "rm -rf .test-build .test-data"
+  },
+  "private": true
+}
+```
+
+#### `tsconfig.json`  ·  186B
+
+```json
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "exclude": ["node_modules", "tests", ".test-build", ".test-data", "android", "dist", "web-build"]
+}
+```
+
+#### `tsconfig.test.json`  ·  474B
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["ES2020"],
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/database/**/*.ts", "src/repositories/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+#### `.gitignore`  ·  582B
+
+```
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Native (CNG — يُولَّد عبر npx expo prebuild)
+android/
+ios/
+
+# artifacts اختبار البيانات
+.test-data/
+.test-build/
+```
+
+#### `AGENTS.md`  ·  2.5KB
+
+```md
+This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+
+## Expo has changed — do not trust your training data
+
+Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
+
+1. Read the major version of the `expo` package in `package.json`.
+2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
+3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+
+## Commands
+
+Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+
+```bash
+npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
+npx expo start              # start the dev server
+npx expo lint               # lint
+npx tsc --noEmit            # typecheck
+npx expo-doctor             # diagnose dependency and config issues
+npx expo install --fix      # fix incompatible package versions
+```
+
+Run lint and typecheck before declaring any task done.
+
+## Navigation & Routing
+
+- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
+- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
+- Docs: https://docs.expo.dev/router/introduction.md
+
+## Building with EAS
+
+Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
+Docs: https://docs.expo.dev/eas/index.md
+
+## Rules
+
+- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
+- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+```
+
+#### `LICENSE`  ·  3.0KB
+
+```
+رفيق القرآن الكريم — Quran Companion
+
+حقوق المصمم والمطور: إيهاب عجور أبو الأمير
+© 2026 — جميع الحقوق محفوظة.
+
+يُمنع نسخ هذا التطبيق أو توزيعه أو تعديله أو استخدامه تجاريًا دون إذن كتابي
+صريح من المالك المذكور أعلاه.
+
+--------------------------------------------------------------------------------
+تراخيص المحتوى المعتمد داخل التطبيق (تُعرض أيضًا في شاشة «حول التطبيق»):
+--------------------------------------------------------------------------------
+
+1) نص القرآن الكريم — Tanzil Project, "Tanzil Quran Text (Uthmani)" Version 1.1
+   الترخيص: Creative Commons Attribution 3.0 مع شروط Tanzil الإضافية:
+   نسخ حرفية فقط دون أي تغيير، مع نسبة المصدر وبقاء بلوك الحقوق،
+   ورابط إلى tanzil.net.
+   التفاصيل: content/CONTENT-MANIFEST.md
+
+1ب) بيانات بنية المصحف (أسماء السور وعدد الآيات والجزء والصفحة والسجدات)
+   — Tanzil Project, "Quran Metadata" Version 1.0
+   الترخيص: CC-BY (حسب ترويسة الملف) — تُستخدم للبيانات البنيوية فقط
+   (أسماء/أعداد/تقسيمات) ولا تُعدّل النص القرآني.
+   المصدر: https://tanzil.net/docs/Quran_Metadata
+   التفاصيل: content/IMPORT-REPORT.md
+
+2) حزمة Realm — MongoDB Realm
+   الترخيص: Apache License 2.0 (النسخة الموزعة في node_modules/realm)
+
+3) الخطوط المضمّنة:
+   - Tajawal (Boutros International 2017) — SIL Open Font License 1.1
+   - Amiri Quran (Amiri Project, Khaled Hosny) — SIL Open Font License 1.1
+
+4) التفسير (المرحلة 4) — مصدران كلاسيكيان في الملك العام، مُوزَّعان عبر
+   api.quran.com (نُزَّلا 2026-10-12):
+   - تفسير ابن كثير (ar-tafsir-ibn-kathir، resource_id 14):
+     إسماعيل بن عمر بن كثير (ت 1373هـ / 1380م).
+   - تفسير البغوي — معاني القرآن (ar-tafsir-al-baghawi، resource_id 94):
+     هبة الله بن موسى البغوي (ت 516هـ / 1125م).
+   الاعتماد: بصمات SHA-256 + بوابة فحص: content/QA-IMPORT-REPORT.md
+
+5) الأذكار (المرحلة 5) — نص «حصن المسلم من أذكار الكتاب والسنة»:
+   د. سعيد بن علي بن وهف القحطاني (حرّر صفر 1409هـ / 1988م) —
+   نص ديني في الملكية العامة (توزيع حر عبر مجمع الملك فهد).
+   المستوديع المعتمد: osamayy/azkar-db @ fbdfa017782c (بلا رخصة صريحة —
+   مخاطرة موثقة) + تحقق مستقل عبر Seen-Arabic (MIT) @ 29d7623fede5.
+   الاعتماد: بصمات SHA-256 + بوابة فحص: content/ADHKAR-IMPORT-REPORT.md
+
+6) Expo / React Native — MIT (حسب حزمها الموزعة)
+```
+
+#### `STAGE-PROGRESS.md`  ·  9.9KB
+
+```md
+# STAGE-PROGRESS.md — متابعة التنفيذ
+
+**المشروع:** رفيق القرآن الكريم
+**حقوق المصمم والمطور:** إيهاب عجور أبو الأمير
+**آخر تحديث:** 2026-10-12
+**المرحلة الحالية:** 5 — الأذكار
+**الحالة:** مكتملة (ضمن بيئة التنفيذ — انظر المتبقي)
+
+## 1. ما تم إنجازه
+- [x] **قرار المستخدم:** «معاني الكلمات» مؤجلة (لا زر ولا بيانات)؛ الأذكار = المرحلة 5،
+  والبحث عن مصدر موثوق **أولًا** قبل البناء — نُفِّذ كما قُرِّر.
+- [x] **بحث المصادر (سَنبورك):** 3 مرشحات مرخّصة قابلة للأتمتة فحصت (osamayy/azkar-db،
+  Seen-Arabic/MIT، rn0x/hisn_almuslim_json) + sunnah.com (محجوب Cloudflare) — اعتمد
+  المستخدم: **osamayy/azkar-db + تحقق MIT + آيات القرآن من Tanzil**.
+- [x] **حزمة الأذكار الموثقة (بوابات 05):** «حصن المسلم من أذكار الكتاب والسنة»
+  (د. سعيد القحطاني) — **345 ذكرًا / 135 فئة** (نص فصحى مشكّلة) + تحقق:
+  **12/12** نصًا قرآنيًا == Tanzil المعتمد + **29/34** (≥85٪) نصوص صباح/مساء متطابقة
+  مع مصدر MIT مستقل (3 فروق مصاغة/رواية موثقة + 3 اختلاف تكرارات موثق) —
+  **بوابة الاستيراد: 11/11**. المخرجات: `content/adhkar-data.json` +
+  `content/refs/adhkar/` (raw + manifest + LICENSE MIT) + `content/ADHKAR-IMPORT-REPORT.md`.
+  المخاطرة الرخصية موثقة (المستوديو بلا رخصة صريحة — النص ديني في الملكية العامة).
+- [x] **شاشة الأذكار الكاملة**: 135 فئة قابلة للبحث + 345 ذكرًا بعدّاد لكل ذكر
+  (سقف من المصدر؛ القيمة إن وُجدت وإلا 1 — قاعدة موثقة) + ملخص الفئة اليوم
+  (X/Y) + تصفير العنصر/الفئة + **النصوص القرآنية داخل الأذكار تُعرض من Tanzil
+  المعتمدة** (اتساق المصحف — آية الكرسي/الإخلاص/الفلق/الناس/الملك).
+- [x] **بيانات المستخدم الفعلية في Realm** (`DhikrProgress` — مخطط v2 الموجود):
+  سجل يومي لكل ذكر (`id = ذكر@يوم`) — لا سجل = صفر (لا أرقام افتراضية)؛
+  **سجلات مستقلة عن جلسات القراءة** (قرار النطاق).
+- [x] **اختبارات المرحلة 5**: 18 فحصًا (بوابات بصمات + سلامة الحزمة + المستودع +
+  قاعدة العرض بايت-ببايت + Realm حقيقي: زيادة/سقف/تصفير/ملخص/استعادة/عزل اليوم)
+  — **الإجمالي 155/155**.
+- [x] **معاينة ويب (13 فحصًا) — 13/13 صحيحة، صفر أخطاء console/page** (لقطة 29):
+  الفئات 135/العدود/الصباح 31/نص الكرسي العثماني/2/3→3/3 مكتمل/الاستعادة بعد
+  إعادة التحميل/ملخص ١/٣١/التصفير/البحث.
+- [x] **TypeScript نظيف** + إصلاح حقيقي اكتُشف أثناء الفحص: `dist/` (72MB) كان
+  داخل نطاق فحص tsc — أُضيف للاستثناء (مخرج بناء لا يُفحص).
+
+## 2. الملفات التي أُنشئت أو عُدّلت
+| الملف | التغيير | الحالة |
+|---|---|---|
+| `content/refs/adhkar/` | raw: azkar_obj.json (osamayy @ fbdfa017782c) + morning_seen_ar.json (MIT @ 29d7623fede5) + LICENSE + manifest (بصمات/قواعد) | جديد |
+| `content/adhkar-data.json` | الحزمة: 345 عنصرًا/135 فئة + manifest + قواعد | جديد |
+| `content/ADHKAR-IMPORT-REPORT.md` | تقرير بوابة 05 + الفروق الموثقة | جديد |
+| `scripts/import-adhkar.mjs` | سكربت الاستيراد والفحص (11 فحصًا) | جديد |
+| `src/repositories/adhkar-content-repository.ts` | وصول الحزمة + `getAdhkarDisplayText` (قرآني من Tanzil/سائر من المصدر) | جديد |
+| `src/repositories/adhkar-progress-repository.ts` | `DhikrProgress`: زيادة/سقف/تصفير/ملخص فئة/عزل اليوم | جديد |
+| `src/features/adhkar/adhkar-screen.tsx` | هيكل فارغ ← شاشة كاملة (فئات/بحث/عدّادات/تصفير) | معدّل (جوهري) |
+| `src/features/library/about-screen.tsx` + `LICENSE` | مصدر الأذكار + بند الرخصة (5) | معدّل |
+| `tests/adhkar-stage5.test.ts` | 18 فحصًا | جديد |
+| `package.json` | `test:realm` يشمل المرحلة 5 + نسخ الحزمة | معدّل |
+| `tsconfig.json` | استثناء `dist`/`web-build` (إصلاح فحص حقيقي) | معدّل |
+| `docs/SCREEN-MAP.md` | هيكل المرحلة 5 | معدّل |
+
+## 3. الاختبارات ونتائجها
+| الاختبار | النتيجة | الملاحظات |
+|---|---|---|
+| بوابة استيراد الأذكار (05) | ✅ 11/11 | بصمات/345×135/بنية/12/12 قرآن==Tanzil/29/34 MIT (≥85٪) |
+| القاعدة: عرض النصوص | ✅ نجح | الإخلاص/الكرسي == Tanzil بايت-ببايت + غير القرآني == المصدر بلا تعديل |
+| تقدم الأذكار (Realm حقيقي) | ✅ نجح | 0→1→2→3 ثم سقف (لا 4) + تصفير + ملخص فئة 2/3 + استعادة بعد إعادة الفتح + سجل بتاريخ سابق لا يظهر في «اليوم» |
+| المجموع `npm run test:realm` | ✅ **155/155** | 24+24+30+26+33+18 |
+| TypeScript كامل المشروع | ✅ نظيف | بعد استثناء dist (كان يُفحص بالخطأ) |
+| معاينة ويب (Playwright) — 13 فحصًا | ✅ **13/13** | صفر أخطاء console/page — لقطة 29 |
+| تشغيل على Android حقيقي | **لم يُختبر على جهاز** | قيد سنبورك — نفس تأجيل المراحل 1–4 |
+
+## 4. العمل الجاري
+- المهمة: المرحلة 5 — اكتملت.
+
+## 5. المتبقي والمشكلات
+- **معاني الكلمات**: معلّقة بقرار المستخدم (لا زر وهمي) — يُعاد النقاش عند توفر
+  مصدر موثوق قابل للأتمتة.
+- **جهاز حقيقي**: التباين/حجم اللمس/Share Sheet — تأجيل موثق متواصل.
+- **الاستماع (المرحلة 6)**: محتوى تلاوة مرخّص لم يُعتمد بعد (بقرار سابق).
+- **اختلافات المصادر الموثقة** (3 فروق نصوص + 3 تكرارات بين osamayy وMIT):
+  معروضة في `content/ADHKAR-IMPORT-REPORT.md` — يُعتمد عدّاد osamayy.
+- هل تمنع الانتقال للمرحلة التالية؟ **لا** — الاستماع (6) يحتاج أولًا اعتماد
+  مصدر تلاوة (نفس سياسة المصادر).
+
+## 6. المرحلة التالية
+- اسم المرحلة: **6 — الاستماع**
+- المهام: اعتماد مصدر تلاوة مرخّص (بوابات 05 — بحث أولًا كما في الأذكار) +
+  مشغل + آخر موضع استماع + تكامل مع الورد إن رغبت.
+
+## 7. تقدير الإنجاز
+- **المرحلة 5: مكتملة** — 345 ذكرًا/135 فئة من مصدر معتمد بتحقق مزدوج (Tanzil +
+  MIT) + عدّادات فعلية في Realm + شاشة كاملة + 155/155 فحصًا + معاينة ويب 13/13
+  صفر أخطاء.
+
+---
+
+## ملخص المراحل السابقة
+
+### المرحلة 4 — التفسير وعرض صفحة المصحف (مكتملة — commit `8d1fab6`)
+حزمة تفسير موثقة (ابن كثير + البغوي — 6205+6236 آية) + 31 فجوة موثقة → «لا يتوفر» +
+مودال التفسير في أدوات الآية + شارة الرسم العثماني + 4 لوحات مريحة للعين + ترحيل Realm
+حقيقي 1→2 + 3 إصلاحات (القفز ويب/سباق الجلسة/خيط الأرقام) — 137/137 + معاينة ويب 26/26 صفر أخطاء.
+معلّق بقرار المستخدم: معاني الكلمات (لا زر وهمي).
+
+
+### المرحلة 3 — المكتبة الشخصية (مكتملة — commit `daea9b7`)
+دورة جلسة القراءة بقاعدة R1–R6 موثقة ومختبرة (R5: الورد من الجلسات المنتهية) +
+`DailyProgress` + شاشة سجل القراءة + «الورد» الحقيقي في الرئيسية + تسمية العلامات +
+نص المفضلة الفعلي + تصفية الملاحظات + 104/104 فحصًا + معاينة ويب صفر أخطاء (لقطات 17b–22).
+
+
+### المرحلة 2 — المصحف الأساسي (مكتملة — commit `e014745`)
+حزمة Tanzil Uthmani v1.1 المعتمدة (بوابات 05-5: 11 فحصًا، بايت-ببايت) + الفهرس 114 +
+العرض العثماني (05-1) + البحث الموثق (03-5) + آخر موضع قراءة + أدوات الآية (علامة/مفضلة/ملاحظة/
+نسخ/مشاركة) — 78 فحصًا + معاينة ويب (لقطات 12–18) + خط 150٪ بلا قص (07-A).
+
+### المرحلة 1 — التصميم والبنية (مكتملة — commit `cd21d56`)
+نظام التصميم (3 سمات) + الخطوط (Tajawal/Amiri Quran) + التنقل (5 تبويبات + Stacks) + RTL
++ شاشة الإعدادات + «حول التطبيق» + 4 مستودعات + 48 فحصًا.
+
+### معاينة الويب (بين المرحلتين — commit `42e4e54`)
+منصة فحص بـ react-native-web + خادم ساكن + محاكاة localStorage خلف واجهة Realm.
+اكتشفت وأصلحت: (1) Crash حقيقي — BootScreen خارج SafeAreaProvider؛ (2) غياب مسار للإعدادات؛
+(3) خلل دلالية مرجع حي في المحاكاة. التفاصيل: `docs/WEB-PREVIEW.md`.
+```
+
+### 8.2) src/design-system
+
+#### `src/design-system/components.tsx`  ·  7.6KB
+
+```tsx
+/**
+ * مكونات النظام المصممي — هوية هادئة: بطاقات بسيطة، مساحات مريحة، أهداف لمس ≥ 44.
+ * المرجع: 04-UX-UI-SPEC.md
+ */
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from './theme';
+import { fontFamilies, fontSizes, radius, spacing, touchTarget } from './tokens';
+
+/** شاشة أساسية بخلفية السمة ومسافة افتراضية */
+export function Screen({
+  children,
+  style,
+  edges,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  edges?: ('top' | 'bottom' | 'left' | 'right')[];
+}) {
+  const { tokens } = useTheme();
+  return (
+    <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background }, style]} edges={edges ?? ['top', 'bottom', 'left', 'right']}>
+      {children}
+    </SafeAreaView>
+  );
+}
+
+/** بطاقة سطح فاتح بحافة خفيفة */
+export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { tokens } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: tokens.surface,
+          borderRadius: radius.card,
+          borderWidth: 1,
+          borderColor: tokens.border,
+          padding: spacing.md,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+/** عنوان قسم */
+export function SectionTitle({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Text
+      style={[
+        {
+          color: tokens.text,
+          fontSize: fontSizes.md * fontScale,
+          fontWeight: '700',
+          fontFamily: fontFamilies.uiBold,
+          marginBottom: spacing.sm,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Text>
+  );
+}
+
+interface ButtonProps {
+  label: string;
+  onPress?: () => void;
+  variant?: 'primary' | 'outline' | 'ghost';
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}
+
+/** زر أساسي — هدف لمس ≥ 44، حالات (عادي/معطّل/ضغطة) */
+export function Button({ label, onPress, variant = 'primary', disabled, style }: ButtonProps) {
+  const { tokens, fontScale } = useTheme();
+  const isPrimary = variant === 'primary';
+  const isOutline = variant === 'outline';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          minHeight: touchTarget,
+          borderRadius: radius.sm,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: spacing.lg,
+          backgroundColor: isPrimary ? tokens.primary : 'transparent',
+          borderWidth: isOutline ? 1 : 0,
+          borderColor: isOutline ? tokens.primary : 'transparent',
+          opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+        },
+        style,
+      ]}
+    >
+      <Text
+        style={{
+          color: isPrimary ? tokens.onPrimary : isOutline ? tokens.primary : tokens.text,
+          fontSize: fontSizes.md * fontScale,
+          fontWeight: '500',
+          fontFamily: fontFamilies.uiMedium,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** حالة فارغة هادئة — تُظهر بصدق أن المحتوى غير متاح بعد (لا أزرار وهمية) */
+export function EmptyState({
+  title,
+  subtitle,
+  stage,
+}: {
+  title: string;
+  subtitle?: string;
+  stage?: string;
+}) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: spacing.xl,
+        gap: spacing.sm,
+      }}
+    >
+      <View
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          borderWidth: 1.5,
+          borderColor: tokens.accent,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: spacing.xs,
+        }}
+      >
+        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: tokens.accent, opacity: 0.55 }} />
+      </View>
+      <Text
+        style={{
+          color: tokens.text,
+          fontSize: fontSizes.lg * fontScale,
+          fontWeight: '700',
+          fontFamily: fontFamilies.uiBold,
+          textAlign: 'center',
+        }}
+      >
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text
+          style={{
+            color: tokens.muted,
+            fontSize: fontSizes.sm * fontScale,
+            fontFamily: fontFamilies.ui,
+            textAlign: 'center',
+            lineHeight: fontSizes.sm * fontScale * 1.7,
+          }}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
+      {stage ? (
+        <Text
+          style={{
+            marginTop: spacing.sm,
+            color: tokens.muted,
+            fontSize: fontSizes.xs * fontScale,
+            fontFamily: fontFamilies.ui,
+            backgroundColor: tokens.border,
+            borderRadius: radius.full,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+          }}
+        >
+          {stage}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** صف قائمة (مكتبة) — مع إجراء اختياري على الطرف */
+export function ListRow({
+  title,
+  subtitle,
+  trailing,
+  onPress,
+  showChevron,
+}: {
+  title: string;
+  subtitle?: string;
+  trailing?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+}) {
+  const { tokens, fontScale } = useTheme();
+  const content = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+      {showChevron ? (
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: tokens.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tokens.accent }} />
+        </View>
+      ) : null}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: tokens.text,
+            fontSize: fontSizes.md * fontScale,
+            fontWeight: '500',
+            fontFamily: fontFamilies.uiMedium,
+          }}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            numberOfLines={1}
+            style={{
+              color: tokens.muted,
+              fontSize: fontSizes.sm * fontScale,
+              fontFamily: fontFamilies.ui,
+            }}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {trailing ? (
+        <Text
+          style={{
+            color: tokens.muted,
+            fontSize: fontSizes.sm * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        >
+          {trailing}
+        </Text>
+      ) : null}
+    </View>
+  );
+  if (!onPress) {
+    return <View style={[styles.rowBase, { borderColor: tokens.border }]}>{content}</View>;
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.rowBase,
+        { borderColor: tokens.border, opacity: pressed ? 0.7 : 1 },
+      ]}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  rowBase: {
+    backgroundColor: '#FFFFFF00',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    minHeight: touchTarget,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 4,
+  },
+});
+```
+
+#### `src/design-system/fonts.ts`  ·  1.0KB
+
+```ts
+/**
+ * تحميل الخطوط المضمّنة (يعمل دون اتصال).
+ * - Tajawal (OFL — Boutros International 2017): خط الواجهة العربية.
+ * - Amiri Quran (OFL — Amiri Project): خط الرسم العثماني لنص القرآن.
+ * الخطوط في assets/fonts/ مع وثائق الترخيص في docs/FONTS.md.
+ */
+import { loadAsync } from 'expo-font';
+
+const FONT_MAP: Record<string, string> = {
+  Tajawal_Regular: require('../../assets/fonts/Tajawal-Regular.ttf'),
+  Tajawal_Medium: require('../../assets/fonts/Tajawal-Medium.ttf'),
+  Tajawal_Bold: require('../../assets/fonts/Tajawal-Bold.ttf'),
+  AmiriQuran: require('../../assets/fonts/AmiriQuran.ttf'),
+};
+
+let loadPromise: Promise<void> | null = null;
+
+/** تحميل جميع الخطوط مرة واحدة (يدعى عند إقلاع التطبيق) */
+export function loadAppFonts(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = loadAsync(FONT_MAP).catch((e: unknown) => {
+      loadPromise = null;
+      throw e;
+    });
+  }
+  return loadPromise;
+}
+```
+
+#### `src/design-system/theme.tsx`  ·  2.5KB
+
+```tsx
+/**
+ * موفّر السمة — يدير الوضع (فاتح/داكن/دافئ) وحجم الخط ويحفظهما في Realm.
+ * الفصل عن طبقة البيانات عبر SettingsRepository فقط.
+ */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { themes, themeLabels, type ThemeName, type ThemeTokens } from './tokens';
+import { getSettingsRepository } from '../repositories/settings-repository';
+
+interface ThemeContextValue {
+  tokens: ThemeTokens;
+  themeName: ThemeName;
+  fontScale: number;
+  themeLabels: Record<ThemeName, string>;
+  isDark: boolean;
+  settingsLoaded: boolean;
+  setTheme: (name: ThemeName) => void;
+  setFontScale: (scale: number) => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themeName, setThemeName] = useState<ThemeName>('light');
+  const [fontScale, setFontScaleState] = useState(1.0);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSettingsRepository()
+      .getSettings()
+      .then((s) => {
+        if (cancelled) return;
+        setThemeName(s.theme);
+        setFontScaleState(s.fontScale);
+        setSettingsLoaded(true);
+      })
+      .catch((e) => {
+        console.warn('[theme] تعذر قراءة الإعدادات، استخدام الافتراضي', e);
+        if (!cancelled) setSettingsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setTheme = useCallback((name: ThemeName) => {
+    setThemeName(name);
+    void getSettingsRepository().updateSettings({ theme: name });
+  }, []);
+
+  const setFontScale = useCallback((scale: number) => {
+    const clamped = Math.min(1.5, Math.max(0.75, scale));
+    setFontScaleState(clamped);
+    void getSettingsRepository().updateSettings({ fontScale: clamped });
+  }, []);
+
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      tokens: themes[themeName],
+      themeName,
+      fontScale,
+      themeLabels,
+      isDark: themeName === 'dark',
+      settingsLoaded,
+      setTheme,
+      setFontScale,
+    }),
+    [themeName, fontScale, settingsLoaded, setTheme, setFontScale],
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function useTheme(): ThemeContextValue {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) {
+    throw new Error('useTheme يجب استخدامه داخل ThemeProvider');
+  }
+  return ctx;
+}
+```
+
+#### `src/design-system/tokens.ts`  ·  4.3KB
+
+```ts
+/**
+ * رموز التصميم — المرجع: 04-UX-UI-SPEC.md (القسم 2)
+ * هوية إسلامية معاصرة هادئة: أخضر زمردي + ذهبي + خلفية دافئة.
+ *
+ * ملاحظة: قيم الوضع الدافئ والداكن (نصوص/تباين) مشتقة من لوحة الألوان المعتمدة
+ * وتُراجع فعليًا وفق WCAG عند الاختبار على المنصات (متطلب 04-2).
+ */
+
+export interface ThemeTokens {
+  /** الخلفية العامة */
+  background: string;
+  /** خلفية البطاقات والأسطح */
+  surface: string;
+  /** اللون الأساسي (أخضر زمردي) */
+  primary: string;
+  primaryDark: string;
+  /** الذهبي الهادئ للتأكيدات */
+  accent: string;
+  /** النص الأساسي */
+  text: string;
+  /** النص الثانوي */
+  muted: string;
+  /** حافة خفيفة للبطاقات */
+  border: string;
+  /** لون الخطأ/التحذير */
+  error: string;
+  /** خلفية أزرار أساسية (نص أبيض فوقها) */
+  onPrimary: string;
+}
+
+export const lightTheme: ThemeTokens = {
+  background: '#F8F6F0',
+  surface: '#FFFFFF',
+  primary: '#145A46',
+  primaryDark: '#0B3B30',
+  accent: '#C7A45D',
+  text: '#1F2925',
+  muted: '#66736D',
+  border: '#E5E1D8',
+  error: '#8C2F2F',
+  onPrimary: '#FFFFFF',
+};
+
+export const darkTheme: ThemeTokens = {
+  background: '#111A17',
+  surface: '#1B2823',
+  primary: '#2E8B6E',
+  primaryDark: '#145A46',
+  accent: '#D4B87A',
+  text: '#E8ECE9',
+  muted: '#93A39B',
+  border: '#2A3A33',
+  error: '#D08770',
+  onPrimary: '#FFFFFF',
+};
+
+/** وضع القراءة الدافئة — خلفية كريمية للقراءة المريحة */
+export const warmTheme: ThemeTokens = {
+  background: '#F7F0E3',
+  surface: '#FDF9F0',
+  primary: '#145A46',
+  primaryDark: '#0B3B30',
+  accent: '#B08D4F',
+  text: '#2B2620',
+  muted: '#7A715F',
+  border: '#E8DFC9',
+  error: '#8C2F2F',
+  onPrimary: '#FFFFFF',
+};
+
+export type ThemeName = 'light' | 'dark' | 'warm';
+
+export const themes: Record<ThemeName, ThemeTokens> = {
+  light: lightTheme,
+  dark: darkTheme,
+  warm: warmTheme,
+};
+
+export const themeLabels: Record<ThemeName, string> = {
+  light: 'فاتح',
+  dark: 'داكن',
+  warm: 'دافئ',
+};
+
+/** المسافات — أساس 8 (04-2) */
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+} as const;
+
+/** أنصاف الأقطار — بطاقة 18 (04-2) */
+export const radius = {
+  sm: 10,
+  card: 18,
+  lg: 24,
+  full: 999,
+} as const;
+
+/** الحد الأدنى لأهداف اللمس (04-2) */
+export const touchTarget = 44;
+
+/** أحجام الخطوط الأساسية (تُضرب في fontScale) */
+export const fontSizes = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 20,
+  xl: 24,
+  xxl: 28,
+  /** نص المصحف — Amiri Quran يتطلب مسافة أسطر واسعة للتشكيل */
+  quran: 22,
+} as const;
+
+export const fontFamilies = {
+  ui: 'Tajawal_Regular',
+  uiMedium: 'Tajawal_Medium',
+  uiBold: 'Tajawal_Bold',
+  quran: 'AmiriQuran',
+} as const;
+
+/** لوحات «صفحة المصحف» — ألوان مريحة للعين للقراءة الطويلة (مرحلة 4).
+ *  تُطبَّق على صفحة القراءة فقط (لا على بقية التطبيق)، ويمكن أن تختلف عن سمة الواجهة. */
+export interface MushafPalette {
+  /** خلفية الصفحة */
+  page: string;
+  /** نص المصحف */
+  quran: string;
+  /** أرقام الآيات والتفاصيل الثانوية */
+  ayahMeta: string;
+  /** حدود خفيفة داخل الصفحة */
+  border: string;
+}
+
+export const mushafPalettes: Record<'parchment' | 'night' | 'forest', MushafPalette> = {
+  /** رَقّ — كريمي دافئ كلاسيكي */
+  parchment: { page: '#F6F1E4', quran: '#2A2417', ayahMeta: '#8A7B57', border: '#E7DEC8' },
+  /** ليل — أسود مخضرّم ناعم (وضع ليلي) */
+  night: { page: '#101413', quran: '#E9E6DA', ayahMeta: '#7E8A84', border: '#232B28' },
+  /** غابة — أخضر زمردي داكن هادئ */
+  forest: { page: '#13221C', quran: '#DCE8DF', ayahMeta: '#7FA08F', border: '#244034' },
+};
+
+export type MushafBgChoice = 'theme' | 'parchment' | 'night' | 'forest';
+
+export const mushafBgLabels: Record<MushafBgChoice, string> = {
+  theme: 'يتبع السمة',
+  parchment: 'رَقّ',
+  night: 'ليل',
+  forest: 'غابة',
+};
+```
+
+### 8.3) src/database/realm
+
+#### `src/database/realm/browser-adapter.ts`  ·  7.8KB
+
+```ts
+/**
+ * محوّل تخزين للمتصفح — **للمعاينة فقط** (Web preview harness).
+ *
+ * المرجع: 02-ARCHITECTURE.md (القسم 7): Realm ليست قاعدة بيانات متصفح؛ أي نسخة ويب
+ * تستخدم مخزنًا متوافقًا مع المتصفح خلف الواجهات نفسها.
+ *
+ * ينفّذ المصغّر من واجهة Realm المستخدم في التطبيق (objects/filtered/create/
+ * write/delete/close/exists) فوق localStorage لمعاينة الواجهة في المتصفح —
+ * دون ادعاء أن نسخة الويب تخزن في Realm. التطبيق الموزَّع (Android/iOS)
+ * يستخدم حزمة realm الأصلية دون أي تغيير.
+ */
+
+export interface BrowserObjectSchema {
+  name: string;
+  primaryKey?: string;
+  properties: Record<string, string>;
+}
+
+export interface BrowserConfiguration {
+  path?: string;
+  schema?: BrowserObjectSchema[];
+  schemaVersion?: number;
+  onMigration?: (oldRealm: unknown, newRealm: unknown) => void;
+}
+
+interface StoreData {
+  schemaVersion: number;
+  tables: Record<string, Record<string, unknown>[]>;
+}
+
+const LS_KEY = 'quran-companion-preview-db';
+
+type QueryableRow<T = Record<string, unknown>> = T & {
+  filtered(query: string, ...args: unknown[]): QueryableRow<T>[];
+};
+
+function loadStore(schemaVersion: number): StoreData {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as StoreData;
+        if (parsed && typeof parsed.tables === 'object' && parsed.schemaVersion === schemaVersion) {
+          return parsed;
+        }
+      }
+    }
+  } catch {
+    // بيانات تالفة → يبدأ جديد (بيانات معاينة فقط)
+  }
+  return { schemaVersion, tables: {} };
+}
+
+function persist(store: StoreData): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LS_KEY, JSON.stringify(store));
+    }
+  } catch (e) {
+    console.warn('[preview-db] تعذر الحفظ في localStorage', e);
+  }
+}
+
+/** يحول الحقول من نوع Date حسب المخطط (JSON يفقد نوع Date) */
+function withDates(
+  obj: Record<string, unknown>,
+  schema: BrowserObjectSchema | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...obj };
+  if (schema) {
+    for (const [key, type] of Object.entries(schema.properties)) {
+      if ((type === 'date' || type === 'date?') && typeof out[key] === 'string') {
+        out[key] = new Date(out[key] as string);
+      }
+    }
+  }
+  return out;
+}
+
+/** صيغ الاستعلام المستخدمة في التطبيق: "field = $0" و "a = $0 AND b = $1" */
+function matches(row: Record<string, unknown>, query: string, args: unknown[]): boolean {
+  return query
+    .split(' AND ')
+    .every((clause) => {
+      const m = clause.trim().match(/^(\w+)\s*=\s*\$(\d+)$/);
+      if (!m) return true; // صيغة غير مدعومة في المعاينة — تُوثَّق ولا تُكسر
+      const [, field, idx] = m;
+      return row[field] === args[Number(idx)];
+    });
+}
+
+function toStableString(value: unknown): string {
+  return JSON.stringify(value, (_, v) => (v instanceof Date ? v.toISOString() : v));
+}
+
+class BrowserRealm {
+  private store: StoreData;
+  private schemaMap: Map<string, BrowserObjectSchema>;
+  private version: number;
+  private closedFlag = false;
+
+  static exists(_path?: string): boolean {
+    try {
+      return typeof localStorage !== 'undefined' && localStorage.getItem(LS_KEY) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /** يطابق الواجهة الثابتة المستخدمة: Realm.open(config) → Promise */
+  static open(config: BrowserConfiguration): Promise<BrowserRealm> {
+    return Promise.resolve(new BrowserRealm(config));
+  }
+
+  constructor(config: BrowserConfiguration) {
+    const version = config.schemaVersion ?? 1;
+    this.store = loadStore(version);
+    this.version = version;
+    this.schemaMap = new Map((config.schema ?? []).map((s) => [s.name, s]));
+    this.normalizeDates();
+  }
+
+  /** بعد قراءة JSON، حقول date تعود كسلاسل — نحولها إلى Date (مطابقة لسلوك Realm) */
+  private normalizeDates(): void {
+    for (const [type, table] of Object.entries(this.store.tables)) {
+      const schema = this.schemaMap.get(type);
+      if (!schema) continue;
+      for (const row of table) {
+        for (const [key, type2] of Object.entries(schema.properties)) {
+          if ((type2 === 'date' || type2 === 'date?') && typeof row[key] === 'string') {
+            row[key] = new Date(row[key] as string);
+          }
+        }
+      }
+    }
+  }
+
+  get schemaVersion(): number {
+    return this.version;
+  }
+
+  get isClosed(): boolean {
+    return this.closedFlag;
+  }
+
+  get schema(): BrowserObjectSchema[] {
+    return [...this.schemaMap.values()];
+  }
+
+  /**
+   * يعيد الصفوف **مرجعًا حيًا** داخل المخزن — مطابقة لسلوك Realm (objects()
+   * مرجع حي، والتعديل داخل write يُحفظ). أي نسخ هنا كان يكسر المستودعات
+   * المكتوبة على هذه الدلالية (كما اكتشفت المعاينة مع updateSettings).
+   */
+  objects<T = Record<string, unknown>>(type: string): QueryableRow<T>[] {
+    this.assertOpen();
+    const rows = (this.store.tables[type] ?? []) as T[];
+    return this.asQueryable(rows);
+  }
+
+  private asQueryable<T>(rows: T[]): QueryableRow<T>[] {
+    const self = this;
+    const wrapped = rows as QueryableRow<T>[];
+    return Object.assign(wrapped, {
+      filtered(query: string, ...args: unknown[]): QueryableRow<T>[] {
+        const filtered = (wrapped as T[]).filter((r) =>
+          matches(r as unknown as Record<string, unknown>, query, args),
+        );
+        return self.asQueryable(filtered);
+      },
+    });
+  }
+
+  create(type: string, values: Record<string, unknown>): Record<string, unknown> {
+    this.assertOpen();
+    const schema = this.schemaMap.get(type);
+    if (!schema) {
+      throw new Error(`نوع غير معروف في مخطط المعاينة: ${type}`);
+    }
+    const pk = schema.primaryKey;
+    if (pk && values[pk] !== undefined) {
+      const table = this.store.tables[type] ?? [];
+      if (table.some((r) => r[pk] === values[pk])) {
+        throw new Error(`مفتاح أساسي مكرر: ${type}.${pk} = ${String(values[pk])}`);
+      }
+    }
+    if (!this.store.tables[type]) {
+      this.store.tables[type] = [];
+    }
+    // الصف نفسه هو المرجع الذي يُعاد ويُعدَّل لاحقًا (دلالية Realm الحية)
+    const row = withDates({ ...values }, schema);
+    this.store.tables[type].push(row);
+    persist(this.store);
+    return row;
+  }
+
+  write(fn: () => void): void {
+    this.assertOpen();
+    fn();
+    persist(this.store);
+  }
+
+  delete(subject: unknown): void {
+    this.assertOpen();
+    const obj = subject as Record<string, unknown>;
+    for (const [type, table] of Object.entries(this.store.tables)) {
+      const schema = this.schemaMap.get(type);
+      const pk = schema?.primaryKey;
+      const idx = table.findIndex((r) => {
+        if (pk && obj[pk] !== undefined && r[pk] === obj[pk]) return true;
+        // مطابقة عميقة معيارية (تُطبع المفاتيح مرتبة وتُعزل التواريخ)
+        const norm = (x: Record<string, unknown>) => {
+          const keys = Object.keys(x).sort();
+          return toStableString(Object.fromEntries(keys.map((k) => [k, x[k]])));
+        };
+        return norm(r) === norm(obj);
+      });
+      if (idx >= 0) {
+        table.splice(idx, 1);
+        persist(this.store);
+        return;
+      }
+    }
+  }
+
+  close(): void {
+    persist(this.store);
+    this.closedFlag = true;
+  }
+
+  private assertOpen(): void {
+    if (this.closedFlag) {
+      throw new Error('قاعدة المعاينة مغلقة');
+    }
+  }
+}
+
+export default BrowserRealm;
+```
+
+#### `src/database/realm/realm-ctor.ts`  ·  634B
+
+```ts
+/**
+ * اختيار منشئ Realm حسب المنصة — عبر ملفات منصة React Native:
+ * - realm-ctor.ts        ← Node (اختبارات): حزمة realm الأصلية
+ * - realm-ctor.native.ts ← Android/iOS: حزمة realm الأصلية
+ * - realm-ctor.web.ts    ← Web (معاينة فقط): محوّل تخزين المتصفح
+ */
+import type { Realm as RealmType } from 'realm';
+
+export type RealmCtor = typeof RealmType;
+
+let cached: RealmCtor | null = null;
+
+export function getRealmCtor(): RealmCtor {
+  if (!cached) {
+    cached = (require('realm') as { Realm: RealmCtor }).Realm;
+  }
+  return cached;
+}
+```
+
+#### `src/database/realm/realm-ctor.native.ts`  ·  347B
+
+```ts
+/**
+ * اختيار منشئ Realm — React Native (Android/iOS): حزمة realm الأصلية.
+ * يُحلَّل هذا الملف تلقائيًا على المنصات الأصلية (متداد .native).
+ */
+import { Realm } from 'realm';
+
+export type RealmCtor = typeof Realm;
+
+export function getRealmCtor(): RealmCtor {
+  return Realm;
+}
+```
+
+#### `src/database/realm/realm-ctor.web.ts`  ·  479B
+
+```ts
+/**
+ * اختيار منشئ Realm — Web (معاينة فقط): محوّل تخزين المتصفح خلف الواجهات نفسها.
+ * المرجع: 02-ARCHITECTURE.md (القسم 7) — لا يُدَّعى أن نسخة الويب تخزن في Realm.
+ */
+import BrowserRealm from './browser-adapter';
+import type { Realm } from 'realm';
+
+export type RealmCtor = typeof Realm;
+
+export function getRealmCtor(): RealmCtor {
+  return BrowserRealm as unknown as RealmCtor;
+}
+```
+
+#### `src/database/realm/realm.ts`  ·  4.3KB
+
+```ts
+/**
+ * تهيئة قاعدة بيانات المستخدم المحلية (Realm) وإدارتها.
+ * المرجع: 02-ARCHITECTURE.md (القسم 2 و7 و8) و 03-REALM-DATABASE-SCHEMA.md
+ *
+ * اختيار الحزمة حسب المنصة عبر ملفات منصة React Native (realm-ctor.*):
+ * - Android/iOS (realm-ctor.native.ts): حزمة realm الأصلية.
+ * - Web (realm-ctor.web.ts — معاينة فقط): محوّل تخزين المتصفح خلف الواجهات نفسها
+ *   وفق 02-§7 — لا يُدَّعى أن نسخة الويب تخزن في Realm.
+ * - Node/اختبارات (realm-ctor.ts): حزمة realm الأصلية (نفس إصدار React Native).
+ *
+ * ملاحظة توافق (تحقق المرحلة 0 — realm 20.2.0):
+ * - دالة الترحيل تُمرر عبر `onMigration` (وليس `migration` في الإصدارات القديمة).
+ * - لا يوجد `onFirstLaunch` في الإصدار 20؛ يُكتشف أول تشغيل بمقارنة الإصدار قبل الفتح.
+ * - لا توجد `realm.object(type, key)`؛ الجلب بالمفتاح عبر `objects(type).filtered('id = $0', key)`.
+ *
+ * قواعد صارمة:
+ * - الفتح مرة واحدة لكل جلسة تشغيل، والكتابة داخل معاملات فقط عبر repositories.
+ * - فشل الفتح أو الترحيل يُعرض للمستخدم برسالة واضحة ولا يُخفى.
+ * - الترحيل: أي إصدار قادم يجب أن يحمل منطقًا صريحًا داخل onMigration ويُختبر قبل اعتماده.
+ */
+import { userSchemas, USER_SCHEMA_VERSION, APP_DB_PATH } from './schemas';
+import { getRealmCtor } from './realm-ctor';
+import type { Realm } from 'realm';
+
+let appRealm: Realm | null = null;
+
+export interface RealmOpenError {
+  stage: 'open' | 'migrate' | 'unknown';
+  message: string;
+}
+
+/**
+ * افتح قاعدة بيانات المستخدم.
+ * @param path مسار مطلق (للاختبارات على Node)؛ إن حُذف يُستخدم المسار الافتراضي
+ *          على الجهاز (يُحله Realm داخل مساحة التخزين الخاصة بالتطبيق).
+ */
+export async function openAppRealm(path?: string): Promise<Realm> {
+  if (appRealm) {
+    return appRealm;
+  }
+  const RealmCtor = getRealmCtor();
+  const targetPath = path ?? APP_DB_PATH;
+  const isFirstLaunch = !RealmCtor.exists(targetPath);
+  try {
+    const realm = await RealmCtor.open({
+      path: targetPath,
+      schema: userSchemas,
+      schemaVersion: USER_SCHEMA_VERSION,
+      onMigration: (oldRealm: unknown, newRealm: unknown) => {
+        const o = oldRealm as { schemaVersion?: number };
+        const n = newRealm as {
+          schemaVersion?: number;
+          write(cb: () => void): void;
+          objects(name: string): Iterable<Record<string, unknown>>;
+        };
+        // 1 → 2: إضافة mushafBg إلى AppSettings (الافتراضي: 'theme' — يتبع السمة)
+        // الترحيل يعمل داخل معاملة كتابة ضمنية — التعديل المباشر يكفي (لا write() هنا)
+        if (o.schemaVersion !== undefined && o.schemaVersion < 2) {
+          const recs = Array.from(n.objects('AppSettings'));
+          for (const rec of recs) {
+            rec.mushafBg = 'theme';
+          }
+        }
+        console.warn(`[realm] ترحيل المخطط من ${o.schemaVersion} إلى ${n.schemaVersion}`);
+      },
+    });
+    appRealm = realm;
+    if (isFirstLaunch) {
+      console.info('[realm] قاعدة البيانات أُنشئت لأول مرة');
+    }
+    return realm;
+  } catch (e) {
+    appRealm = null;
+    const message = e instanceof Error ? e.message : String(e);
+    const stage: RealmOpenError['stage'] = /migrat/i.test(message) ? 'migrate' : 'open';
+    throw { stage, message } satisfies RealmOpenError;
+  }
+}
+
+/** أعد قاعدة البيانات المفتوحة (إن وُجدت) */
+export function closeAppRealm(): void {
+  if (appRealm) {
+    appRealm.close();
+    appRealm = null;
+  }
+}
+
+/** القاعدة المفتوحة حاليًا — تُستخدم داخليًا من repositories فقط */
+export function getOpenAppRealm(): Realm {
+  if (!appRealm) {
+    throw new Error('قاعدة البيانات غير مفتوحة — استُدعي المستودع قبل openAppRealm()');
+  }
+  return appRealm;
+}
+```
+
+#### `src/database/realm/schemas.ts`  ·  4.5KB
+
+```ts
+/**
+ * مخططات Realm لبيانات المستخدم المحلية.
+ * المرجع: 03-REALM-DATABASE-SCHEMA.md (قسم 2 — المخططات المنطقية)
+ *
+ * ملاحظات:
+ * - معرفات ثابتة وفريدة لكل كيان (primary key).
+ * - التواريخ تُخزن Date/UTC وتُعرض بالتوقيت المحلي.
+ * - لا تُخزن نصوص كبيرة في سجلات التقدم.
+ * - فهارس على حقول البحث والربط كثيرة الاستخدام.
+ */
+import type { ObjectSchema } from 'realm';
+
+/** إصدار مخطط قاعدة بيانات المستخدم — يُرفع فقط مع ترحيل صريح */
+export const USER_SCHEMA_VERSION = 2;
+
+/** اسم ملف قاعدة بيانات المستخدم (نسبي — يحله Realm داخل مساحة التطبيق على الأجهزة) */
+export const APP_DB_PATH = 'QuranCompanion.realm';
+
+export const AppSettingsSchema: ObjectSchema = {
+  name: 'AppSettings',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    theme: 'string',
+    fontScale: 'double',
+    readingMode: 'string',
+    mushafBg: 'string',
+    lastSurahNumber: 'int',
+    lastAyahNumber: 'int',
+    lastReadAt: 'date?',
+    dailyGoalUnit: 'string',
+    dailyGoalValue: 'int',
+    notificationsEnabled: 'bool',
+    morningReminderTime: 'string?',
+    eveningReminderTime: 'string?',
+    updatedAt: 'date',
+  },
+};
+
+export const BookmarkSchema: ObjectSchema = {
+  name: 'Bookmark',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    surahNumber: 'int',
+    ayahNumber: 'int',
+    label: 'string?',
+    createdAt: 'date',
+    updatedAt: 'date',
+  },
+  // فهرس على موضع العلامة للبحث السريع في المكتبة
+};
+
+export const FavoriteAyahSchema: ObjectSchema = {
+  name: 'FavoriteAyah',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    surahNumber: 'int',
+    ayahNumber: 'int',
+    createdAt: 'date',
+  },
+};
+
+export const PersonalNoteSchema: ObjectSchema = {
+  name: 'PersonalNote',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    surahNumber: 'int',
+    ayahNumber: 'int?',
+    title: 'string?',
+    body: 'string',
+    tags: 'string[]',
+    createdAt: 'date',
+    updatedAt: 'date',
+  },
+};
+
+export const ReadingPlanSchema: ObjectSchema = {
+  name: 'ReadingPlan',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    title: 'string',
+    planType: 'string',
+    startDate: 'date',
+    targetEndDate: 'date?',
+    goalUnit: 'string',
+    goalValue: 'int',
+    status: 'string',
+    createdAt: 'date',
+    updatedAt: 'date',
+  },
+};
+
+export const ReadingSessionSchema: ObjectSchema = {
+  name: 'ReadingSession',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    startedAt: 'date',
+    endedAt: 'date?',
+    startSurahNumber: 'int',
+    startAyahNumber: 'int',
+    endSurahNumber: 'int?',
+    endAyahNumber: 'int?',
+    pagesRead: 'int',
+    ayahsRead: 'int',
+    durationSeconds: 'int',
+    source: 'string',
+    createdAt: 'date',
+  },
+};
+
+export const DailyProgressSchema: ObjectSchema = {
+  name: 'DailyProgress',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    date: 'date',
+    ayahsRead: 'int',
+    pagesRead: 'int',
+    audioMinutes: 'int',
+    adhkarCompleted: 'int',
+    wordsLearned: 'int',
+    updatedAt: 'date',
+  },
+};
+
+export const DhikrProgressSchema: ObjectSchema = {
+  name: 'DhikrProgress',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    contentId: 'string',
+    dateKey: 'string',
+    countCompleted: 'int',
+    targetCount: 'int',
+    updatedAt: 'date',
+  },
+};
+
+export const DownloadRecordSchema: ObjectSchema = {
+  name: 'DownloadRecord',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    contentType: 'string',
+    contentId: 'string',
+    version: 'string',
+    status: 'string',
+    bytesDownloaded: 'int',
+    totalBytes: 'int?',
+    updatedAt: 'date',
+  },
+};
+
+export const ContentMetadataSchema: ObjectSchema = {
+  name: 'ContentMetadata',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    contentType: 'string',
+    sourceName: 'string',
+    sourceVersion: 'string',
+    license: 'string',
+    sourceUrl: 'string?',
+    checksum: 'string?',
+    importedAt: 'date',
+    validationStatus: 'string',
+  },
+};
+
+/** المخططات الكاملة لقاعدة بيانات المستخدم */
+export const userSchemas: ObjectSchema[] = [
+  AppSettingsSchema,
+  BookmarkSchema,
+  FavoriteAyahSchema,
+  PersonalNoteSchema,
+  ReadingPlanSchema,
+  ReadingSessionSchema,
+  DailyProgressSchema,
+  DhikrProgressSchema,
+  DownloadRecordSchema,
+  ContentMetadataSchema,
+];
+```
+
+#### `src/database/realm/types.ts`  ·  4.4KB
+
+```ts
+/**
+ * أنواع بيانات المستخدم (بدون استيراد Realm) — تُستخدم في الواجهات والخزائن.
+ * المرجع: 03-REALM-DATABASE-SCHEMA.md
+ */
+
+/** سمة التطبيق: فاتح | داكن | دافئ */
+export type AppTheme = 'light' | 'dark' | 'warm';
+
+/** نمط قراءة المصحف: متتابع | صفحة مصحف */
+export type ReadingMode = 'continuous' | 'mushaf-page';
+
+/** لون صفحة المصحف (خلفية مريحة للعين): يتبع السمة | رَقّ | ليل | غابة */
+export type MushafBg = 'theme' | 'parchment' | 'night' | 'forest';
+
+/** وحدة الهدف اليومي */
+export type GoalUnit = 'pages' | 'ayahs' | 'juz';
+
+/** نوع الخطة */
+export type PlanType = 'khatmah' | 'custom' | 'memorization' | 'review';
+
+/** حالة الخطة */
+export type PlanStatus = 'active' | 'paused' | 'completed' | 'archived';
+
+/** نوع محتوى التنزيل */
+export type DownloadContentType = 'audio' | 'tafsir' | 'dictionary' | 'quran-data';
+
+/** حالة التنزيل */
+export type DownloadStatus = 'queued' | 'downloading' | 'completed' | 'failed' | 'removed';
+
+/** حالة فحص صحة المحتوى المستورد */
+export type ValidationStatus = 'pending' | 'passed' | 'failed';
+
+/** سجل الإعدادات — سجل واحد ثابت id = 'app-settings' */
+export interface AppSettings {
+  id: string;
+  theme: AppTheme;
+  fontScale: number;
+  readingMode: ReadingMode;
+  /** خلفية صفحة المصحف (مريحة للعين) — الافتراضي: يتبع سمة التطبيق */
+  mushafBg: MushafBg;
+  lastSurahNumber: number;
+  lastAyahNumber: number;
+  lastReadAt?: Date | null;
+  dailyGoalUnit: GoalUnit;
+  dailyGoalValue: number;
+  notificationsEnabled: boolean;
+  morningReminderTime?: string | null;
+  eveningReminderTime?: string | null;
+  updatedAt: Date;
+}
+
+export interface Bookmark {
+  id: string;
+  surahNumber: number;
+  ayahNumber: number;
+  label?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FavoriteAyah {
+  id: string;
+  surahNumber: number;
+  ayahNumber: number;
+  createdAt: Date;
+}
+
+export interface PersonalNote {
+  id: string;
+  surahNumber: number;
+  ayahNumber?: number | null;
+  title?: string | null;
+  body: string;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReadingPlan {
+  id: string;
+  title: string;
+  planType: PlanType;
+  startDate: Date;
+  targetEndDate?: Date | null;
+  goalUnit: GoalUnit;
+  goalValue: number;
+  status: PlanStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReadingSession {
+  id: string;
+  startedAt: Date;
+  endedAt?: Date | null;
+  startSurahNumber: number;
+  startAyahNumber: number;
+  endSurahNumber?: number | null;
+  endAyahNumber?: number | null;
+  pagesRead: number;
+  ayahsRead: number;
+  durationSeconds: number;
+  source: 'manual' | 'reader';
+  createdAt: Date;
+}
+
+/** مفتاح يومي ثابت بصيغة YYYY-MM-DD حسب التقويم المحلي المحدد */
+export interface DailyProgress {
+  id: string;
+  date: Date;
+  ayahsRead: number;
+  pagesRead: number;
+  audioMinutes: number;
+  adhkarCompleted: number;
+  wordsLearned: number;
+  updatedAt: Date;
+}
+
+export interface DhikrProgress {
+  id: string;
+  contentId: string;
+  dateKey: string;
+  countCompleted: number;
+  targetCount: number;
+  updatedAt: Date;
+}
+
+export interface DownloadRecord {
+  id: string;
+  contentType: DownloadContentType;
+  contentId: string;
+  version: string;
+  status: DownloadStatus;
+  bytesDownloaded: number;
+  totalBytes?: number | null;
+  updatedAt: Date;
+}
+
+export interface ContentMetadata {
+  id: string;
+  contentType: string;
+  sourceName: string;
+  sourceVersion: string;
+  license: string;
+  sourceUrl?: string | null;
+  checksum?: string | null;
+  importedAt: Date;
+  validationStatus: ValidationStatus;
+}
+
+/** معرّف ثابت للإعدادات الوحيدة */
+export const APP_SETTINGS_ID = 'app-settings';
+
+/** قيم افتراضية للإعدادات — تُنشأ عند أول تشغيل فقط */
+export const DEFAULT_SETTINGS: Omit<AppSettings, 'id'> = {
+  theme: 'light',
+  fontScale: 1.0,
+  readingMode: 'continuous',
+  mushafBg: 'theme',
+  lastSurahNumber: 1,
+  lastAyahNumber: 1,
+  lastReadAt: null,
+  dailyGoalUnit: 'ayahs',
+  dailyGoalValue: 20,
+  notificationsEnabled: false,
+  morningReminderTime: null,
+  eveningReminderTime: null,
+  updatedAt: new Date(),
+};
+```
+
+### 8.4) src/app (التنقل)
+
+#### `src/app/navigation-theme.ts`  ·  711B
+
+```ts
+/**
+ * سمة التنقل — تُشتق من رموز التصميم (04-UX-UI-SPEC).
+ * React Navigation يحترم I18nManager فيقلب الأشرطة تلقائيًا في RTL.
+ */
+import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
+import { useTheme } from '../design-system/theme';
+
+export function buildNavTheme(): Theme {
+  const { tokens, isDark } = useTheme();
+  const base = isDark ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: tokens.primary,
+      background: tokens.background,
+      card: tokens.surface,
+      text: tokens.text,
+      border: tokens.border,
+      notification: tokens.accent,
+    },
+  };
+}
+```
+
+#### `src/app/root-navigator.tsx`  ·  2.8KB
+
+```tsx
+/**
+ * الموجّه الجذري — شريط سفلي بخمسة تبويبات (01-PRODUCT-SPEC §6):
+ * الرئيسية | المصحف | الأذكار | الاستماع | مكتبتي
+ *
+ * «المصحف» (المرحلة 2) أصبح Stack داخلي: فهرس السور + البحث ← شاشة السورة.
+ * خريطة الشاشات الكاملة موثقة في docs/SCREEN-MAP.md
+ */
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NavigatorScreenParams } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../design-system/theme';
+import { HomeScreen } from '../features/home/home-screen';
+import { MushafStack, type MushafStackParamList } from '../features/quran/mushaf-stack';
+import { AdhkarScreen } from '../features/adhkar/adhkar-screen';
+import { AudioScreen } from '../features/audio/audio-screen';
+import { LibraryStack } from '../features/library/library-stack';
+
+/** أسماء التبويبات — تُستخدم في التنقل بين الشاشات */
+export type RootTabParamList = {
+  'الرئيسية': undefined;
+  'المصحف': NavigatorScreenParams<MushafStackParamList> | undefined;
+  'الأذكار': undefined;
+  'الاستماع': undefined;
+  'مكتبتي': undefined;
+};
+
+export type RootTabNavigation = BottomTabNavigationProp<RootTabParamList>;
+
+const Tab = createBottomTabNavigator<RootTabParamList>();
+
+const TAB_ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  'الرئيسية': 'home',
+  'المصحف': 'book-open-variant',
+  'الأذكار': 'hand-peace',
+  'الاستماع': 'headphones',
+  'مكتبتي': 'library',
+};
+
+export function RootNavigator() {
+  const { tokens } = useTheme();
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: tokens.primary,
+        tabBarInactiveTintColor: tokens.muted,
+        tabBarStyle: {
+          backgroundColor: tokens.surface,
+          borderTopColor: tokens.border,
+        },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
+        sceneStyle: { backgroundColor: tokens.background },
+        tabBarIcon: ({ color, size }) => (
+          <MaterialCommunityIcons name={TAB_ICONS[route.name]} color={color} size={size} />
+        ),
+      })}
+    >
+      <Tab.Screen name="الرئيسية" component={HomeScreen} />
+      <Tab.Screen name="المصحف" component={MushafStack} />
+      <Tab.Screen name="الأذكار" component={AdhkarScreen} />
+      <Tab.Screen name="الاستماع" component={AudioScreen} />
+      <Tab.Screen name="مكتبتي" component={LibraryStack} />
+    </Tab.Navigator>
+  );
+}
+```
+
+### 8.5) src/repositories
+
+#### `src/repositories/adhkar-content-repository.ts`  ·  5.1KB
+
+```ts
+/**
+ * مستودع الأذكار (المرحلة 5) — الوصول إلى حزمة الأذكار المعتمدة.
+ *
+ * نفس القرار المعماري لحزمتي المصحف والتفسير (03-REALM §3): المحتوى الثابت في
+ * **حزمة إصدار موثقة** (content/adhkar-data.json) منفصلًا عن بيانات المستخدم في Realm.
+ *
+ * الحزمة مُنتجة بـ scripts/import-adhkar.mjs وفق بوابة الاعتماد (05):
+ * - المصدر: osamayy/azkar-db @ fbdfa017782c (نص «حصن المسلم من أذكار الكتاب
+ *   والسنة» — نص ديني في الملكية العامة؛ المستوديو بلا رخصة صريحة = مخاطرة موثقة).
+ * - التحقق المستقل: Seen-Arabic (MIT) لأذكار الصباح/المساء + حزمة Tanzil المعتمدة
+ *   لكل نص قرآني داخل الأذكار (12/12 متطابقًا).
+ * - لا توليد بنماذج لغوية؛ التطبيع الوحيد: تنظيف هيكلي (أقواس/أسطر).
+ *
+ * قاعدة العرض: العنصر ذو `quranRef` يُعرض نصه من حزمة Tanzil المعتمدة
+ * (اتساق مع المصحف) — لا من المصدر الخام.
+ *
+ * هذا الملف خالٍ من أي اعتماد على React Native — يُختبر مباشرة على Node.
+ */
+import rawBundle from '../../content/adhkar-data.json';
+import { getAyahsOfSurah, getAyah } from './quran-content-repository';
+
+export interface AdhkarManifest {
+  name: string;
+  version: string;
+  importedAt: string;
+  contentLicense: string;
+  sha256Source: string;
+  rules: string[];
+}
+
+export interface AdhkarCategory {
+  id: number;
+  name: string;
+}
+
+export interface AdhkarItem {
+  /** معرّف مستقر: <فئة>-<ترتيب> (مثال 1-3) */
+  id: string;
+  categoryId: number;
+  category: string;
+  /** النص كما في المصدر (فصحى مشكّلة) — للعرض غير القرآني */
+  zekr: string;
+  /** عدد التكرار: القيمة من المصدر، وإلا 1 (قاعدة موثقة) */
+  count: number;
+  /** المصدر (آية/سورة/حديث) إن وُجد */
+  reference: string | null;
+  /** البيان/الفضل إن وُجد */
+  description: string | null;
+  /** مرجع قرآني: "سورة:آية" أو "سورة:*" (سورة كاملة) — إن وُجد يُعرض من Tanzil */
+  quranRef: string | null;
+}
+
+interface RawBundle {
+  manifest: AdhkarManifest;
+  categories: AdhkarCategory[];
+  items: AdhkarItem[];
+}
+
+const bundle = rawBundle as unknown as RawBundle;
+
+let validated = false;
+/** فحص بنيوي عند أول استخدام — يطابق سياسة حزمي المصحف والتفسير */
+export function validateAdhkarBundle(): void {
+  if (validated) return;
+  if (!Array.isArray(bundle.items) || bundle.items.length !== 345) {
+    throw new Error(`حزمة الأذكار: عدد العناصر غير متوقع (${bundle.items?.length})`);
+  }
+  if (!Array.isArray(bundle.categories) || bundle.categories.length !== 135) {
+    throw new Error(`حزمة الأذكار: عدد الفئات غير متوقع (${bundle.categories?.length})`);
+  }
+  for (const it of bundle.items) {
+    if (!it.id || !it.zekr || it.zekr.trim().length < 5 || !(it.count >= 1)) {
+      throw new Error(`حزمة الأذكار: عنصر تالف (${it.id})`);
+    }
+  }
+  if (new Set(bundle.items.map(i => i.id)).size !== bundle.items.length) {
+    throw new Error('حزمة الأذكار: معرفات مكررة');
+  }
+  validated = true;
+}
+
+/** بيانات الحزمة (إصدار/ترخيص/مصادر) — لشاشة «حول التطبيق» */
+export function getAdhkarManifest(): AdhkarManifest {
+  validateAdhkarBundle();
+  return bundle.manifest;
+}
+
+/** الفئات بالترتيب مع عدد عناصر كل فئة */
+export function getAdhkarCategories(): (AdhkarCategory & { itemCount: number })[] {
+  validateAdhkarBundle();
+  const counts = new Map<number, number>();
+  for (const it of bundle.items) counts.set(it.categoryId, (counts.get(it.categoryId) || 0) + 1);
+  return bundle.categories.map(c => ({ ...c, itemCount: counts.get(c.id) || 0 }));
+}
+
+/** عناصر فئة */
+export function getAdhkarItemsByCategory(categoryId: number): AdhkarItem[] {
+  validateAdhkarBundle();
+  return bundle.items.filter(i => i.categoryId === categoryId);
+}
+
+/** عنصر بالمعرف */
+export function getAdhkarItem(id: string): AdhkarItem | undefined {
+  validateAdhkarBundle();
+  return bundle.items.find(i => i.id === id);
+}
+
+/**
+ * نص العرض: إن كان العنصر قرآنيًا (quranRef) يُؤخذ من حزمة Tanzil المعتمدة
+ * (اتساق المصحف)، وإلا نص المصدر (فصحى مشكّلة) كما هو دون تعديل.
+ */
+export function getAdhkarDisplayText(item: AdhkarItem): string {
+  validateAdhkarBundle();
+  if (!item.quranRef) return item.zekr;
+  const [sRaw, aRaw] = item.quranRef.split(':');
+  const surah = parseInt(sRaw, 10);
+  if (aRaw === '*') {
+    return getAyahsOfSurah(surah).map(a => a.text).join('');
+  }
+  const ayah = parseInt(aRaw, 10);
+  const rec = getAyah(surah, ayah);
+  return rec ? rec.text : item.zekr;
+}
+```
+
+#### `src/repositories/adhkar-progress-repository.ts`  ·  4.3KB
+
+```ts
+/**
+ * مستودع تقدم الأذكار (المرحلة 5) — بيانات المستخدم في Realm (مخطط v2: DhikrProgress).
+ *
+ * سجلات مستقلة عن جلسات القراءة (قرار 06-مرحلة 5):
+ * - `DhikrProgress` بمفتاح `id = <adhkarId>@<dateKey>` — تقدم يومي لكل ذكر.
+ * - `countCompleted` يرتفع بلمس العنصر ويعلو عند `targetCount` (سقف المصدر).
+ * - لا أرقام افتراضية: لا سجل = صفر.
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import { todayKey } from './reading-session-repository';
+import type { Realm } from 'realm';
+
+export interface DhikrProgressRecord {
+  id: string;
+  contentId: string;
+  dateKey: string;
+  countCompleted: number;
+  targetCount: number;
+  updatedAt: Date;
+}
+
+export interface AdhkarProgressRepository {
+  /** تقدم ذكر اليوم (أو سجل فارغ — لا رقم افتراضي) */
+  getToday(adhkarId: string, dateKey?: string): { countCompleted: number; targetCount: number; completed: boolean };
+  /** لمسة زيادة (تعلو عند الهدف) — تعيد التقدم الجديد */
+  recordDhikr(adhkarId: string, targetCount: number, dateKey?: string): { countCompleted: number; targetCount: number; completed: boolean };
+  /** تصفير اليوم */
+  resetToday(adhkarId: string, dateKey?: string): void;
+  /** ملخص فئة اليوم: { done, total } من سجلات الفئات فقط (الهدف من الحزمة) */
+  getCategoryToday(
+    items: { id: string; count: number }[],
+    dateKey?: string,
+  ): { done: number; total: number };
+}
+
+function keyOf(adhkarId: string, dateKey: string): string {
+  return `${adhkarId}@${dateKey}`;
+}
+
+function readRecord(realm: Realm, k: string): DhikrProgressRecord | null {
+  const recs = realm.objects('DhikrProgress').filtered('id = $0', k);
+  return recs.length > 0 ? (recs[0] as unknown as DhikrProgressRecord) : null;
+}
+
+let cached: AdhkarProgressRepository | null = null;
+
+export function getAdhkarProgressRepository(): AdhkarProgressRepository {
+  if (cached) return cached;
+  cached = {
+    getToday(adhkarId: string, dk?: string) {
+      const dateKey = dk ?? todayKey();
+      const rec = readRecord(getOpenAppRealm(), keyOf(adhkarId, dateKey));
+      if (!rec) return { countCompleted: 0, targetCount: 0, completed: false };
+      return {
+        countCompleted: rec.countCompleted,
+        targetCount: rec.targetCount,
+        completed: rec.countCompleted >= rec.targetCount,
+      };
+    },
+    recordDhikr(adhkarId: string, targetCount: number, dk?: string) {
+      const dateKey = dk ?? todayKey();
+      const realm = getOpenAppRealm();
+      const k = keyOf(adhkarId, dateKey);
+      realm.write(() => {
+        const rec = readRecord(realm, k);
+        if (rec) {
+          rec.countCompleted = Math.min(rec.countCompleted + 1, targetCount);
+          rec.targetCount = targetCount;
+          rec.updatedAt = new Date();
+        } else {
+          realm.create('DhikrProgress', {
+            id: k,
+            contentId: adhkarId,
+            dateKey,
+            countCompleted: 1,
+            targetCount,
+            updatedAt: new Date(),
+          });
+        }
+      });
+      const after = readRecord(realm, k)!;
+      return {
+        countCompleted: after.countCompleted,
+        targetCount: after.targetCount,
+        completed: after.countCompleted >= after.targetCount,
+      };
+    },
+    resetToday(adhkarId: string, dk?: string) {
+      const dateKey = dk ?? todayKey();
+      const realm = getOpenAppRealm();
+      const k = keyOf(adhkarId, dateKey);
+      realm.write(() => {
+        const recs = realm.objects('DhikrProgress').filtered('id = $0', k);
+        for (const rec of recs) realm.delete(rec);
+      });
+    },
+    getCategoryToday(items: { id: string; count: number }[], dk?: string) {
+      const dateKey = dk ?? todayKey();
+      const realm = getOpenAppRealm();
+      let done = 0;
+      for (const it of items) {
+        const rec = readRecord(realm, keyOf(it.id, dateKey));
+        if (rec && rec.countCompleted >= it.count) done += 1;
+      }
+      return { done, total: items.length };
+    },
+  };
+  return cached;
+}
+
+/** إعادة ضبط المخزن (اختبارات) */
+export function _resetAdhkarProgressRepositoryForTests(): void {
+  cached = null;
+}
+```
+
+#### `src/repositories/bookmark-repository.ts`  ·  3.9KB
+
+```ts
+/**
+ * مستودع العلامات المرجعية — المرجع: 02-ARCHITECTURE.md (القسم 5) و 03 (قواعد الاتساق)
+ * - مفتاح مركب (سورة، آية) يمنع التكرار غير المقصود.
+ * - تحقق من حدود السورة/الآية (1..114 و 1..286 — الحدود الدقيقة تُفحص ببيانات المصدر في المرحلة 2).
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import type { Bookmark } from '../database/realm/types';
+
+export interface BookmarkInput {
+  surahNumber: number;
+  ayahNumber: number;
+  label?: string | null;
+}
+
+const SURAH_MIN = 1;
+const SURAH_MAX = 114;
+const AYAH_MAX = 286; // أكبر آية في المصحف (2:255..2:286)
+
+class BookmarkRepository {
+  validate(input: BookmarkInput): void {
+    const { surahNumber, ayahNumber } = input;
+    if (!Number.isInteger(surahNumber) || surahNumber < SURAH_MIN || surahNumber > SURAH_MAX) {
+      throw new Error(`رقم السورة خارج النطاق: ${surahNumber}`);
+    }
+    if (!Number.isInteger(ayahNumber) || ayahNumber < 1 || ayahNumber > AYAH_MAX) {
+      throw new Error(`رقم الآية خارج النطاق: ${ayahNumber}`);
+    }
+  }
+
+  async list(): Promise<Bookmark[]> {
+    const realm = getOpenAppRealm();
+    const all = realm.objects('Bookmark') as unknown as Bookmark[];
+    return all.map((b) => ({ ...b })) as Bookmark[];
+  }
+
+  async exists(surahNumber: number, ayahNumber: number): Promise<boolean> {
+    const realm = getOpenAppRealm();
+    const found = realm
+      .objects('Bookmark')
+      .filtered('surahNumber = $0 AND ayahNumber = $1', surahNumber, ayahNumber);
+    return found.length > 0;
+  }
+
+  /** يضيف علامة جديدة؛ يرفض الموضع المكرر (قاعدة اتساق 03-4) */
+  async add(input: BookmarkInput): Promise<Bookmark> {
+    this.validate(input);
+    const realm = getOpenAppRealm();
+    if (await this.exists(input.surahNumber, input.ayahNumber)) {
+      throw new Error('توجد علامة مرجعية على هذا الموضع بالفعل');
+    }
+    const now = new Date();
+    const id = `bm-${input.surahNumber}:${input.ayahNumber}-${now.getTime()}`;
+    realm.write(() => {
+      realm.create('Bookmark', {
+        id,
+        surahNumber: input.surahNumber,
+        ayahNumber: input.ayahNumber,
+        label: input.label ?? null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+    const saved = this.byId(id);
+    if (!saved) {
+      throw new Error('فشل حفظ العلامة');
+    }
+    return saved;
+  }
+
+  /** يحدّث التسمية (أو يمسحها بـ null) ويعيد النسخة المحدّثة */
+  async updateLabel(id: string, label: string | null): Promise<Bookmark> {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('Bookmark').filtered('id = $0', id)[0] as unknown as
+      | (Bookmark & Record<string, unknown>)
+      | undefined;
+    if (!target) {
+      throw new Error('العلامة غير موجودة');
+    }
+    const now = new Date();
+    realm.write(() => {
+      target.label = label && label.trim() ? label.trim() : null;
+      target.updatedAt = now;
+    });
+    const saved = this.byId(id);
+    if (!saved) {
+      throw new Error('فشل حفظ التسمية');
+    }
+    return saved;
+  }
+
+  private byId(id: string): Bookmark | null {
+    const realm = getOpenAppRealm();
+    const found = realm.objects('Bookmark').filtered('id = $0', id)[0] as unknown as
+      | Bookmark
+      | undefined;
+    return found ? { ...found } : null;
+  }
+
+  async remove(id: string): Promise<void> {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('Bookmark').filtered('id = $0', id)[0];
+    if (target) {
+      realm.write(() => {
+        realm.delete(target);
+      });
+    }
+  }
+}
+
+let instance: BookmarkRepository | null = null;
+
+export function getBookmarkRepository(): BookmarkRepository {
+  if (!instance) {
+    instance = new BookmarkRepository();
+  }
+  return instance;
+}
+```
+
+#### `src/repositories/favorite-ayah-repository.ts`  ·  2.7KB
+
+```ts
+/**
+ * مستودع الآيات المفضلة — مفتاح مركب (سورة، آية) يمنع التكرار.
+ * المرجع: 02-ARCHITECTURE.md (القسم 5) و 03 (قواعد الاتساق)
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import type { FavoriteAyah } from '../database/realm/types';
+
+export interface FavoriteAyahInput {
+  surahNumber: number;
+  ayahNumber: number;
+}
+
+const SURAH_MIN = 1;
+const SURAH_MAX = 114;
+const AYAH_MAX = 286;
+
+class FavoriteAyahRepository {
+  validate(input: FavoriteAyahInput): void {
+    const { surahNumber, ayahNumber } = input;
+    if (!Number.isInteger(surahNumber) || surahNumber < SURAH_MIN || surahNumber > SURAH_MAX) {
+      throw new Error(`رقم السورة خارج النطاق: ${surahNumber}`);
+    }
+    if (!Number.isInteger(ayahNumber) || ayahNumber < 1 || ayahNumber > AYAH_MAX) {
+      throw new Error(`رقم الآية خارج النطاق: ${ayahNumber}`);
+    }
+  }
+
+  async list(): Promise<FavoriteAyah[]> {
+    const realm = getOpenAppRealm();
+    const all = realm.objects('FavoriteAyah') as unknown as FavoriteAyah[];
+    return all.map((f) => ({ ...f })) as FavoriteAyah[];
+  }
+
+  async exists(surahNumber: number, ayahNumber: number): Promise<boolean> {
+    const realm = getOpenAppRealm();
+    const found = realm
+      .objects('FavoriteAyah')
+      .filtered('surahNumber = $0 AND ayahNumber = $1', surahNumber, ayahNumber);
+    return found.length > 0;
+  }
+
+  async add(input: FavoriteAyahInput): Promise<FavoriteAyah> {
+    this.validate(input);
+    const realm = getOpenAppRealm();
+    if (await this.exists(input.surahNumber, input.ayahNumber)) {
+      throw new Error('هذه الآية في المفضلة بالفعل');
+    }
+    const now = new Date();
+    const id = `fav-${input.surahNumber}:${input.ayahNumber}-${now.getTime()}`;
+    realm.write(() => {
+      realm.create('FavoriteAyah', {
+        id,
+        surahNumber: input.surahNumber,
+        ayahNumber: input.ayahNumber,
+        createdAt: now,
+      });
+    });
+    const found = realm.objects('FavoriteAyah').filtered('id = $0', id)[0] as unknown as
+      | FavoriteAyah
+      | undefined;
+    if (!found) {
+      throw new Error('فشل حفظ الآية في المفضلة');
+    }
+    return { ...found };
+  }
+
+  async remove(id: string): Promise<void> {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('FavoriteAyah').filtered('id = $0', id)[0];
+    if (target) {
+      realm.write(() => {
+        realm.delete(target);
+      });
+    }
+  }
+}
+
+let instance: FavoriteAyahRepository | null = null;
+
+export function getFavoriteAyahRepository(): FavoriteAyahRepository {
+  if (!instance) {
+    instance = new FavoriteAyahRepository();
+  }
+  return instance;
+}
+```
+
+#### `src/repositories/personal-note-repository.ts`  ·  3.5KB
+
+```ts
+/**
+ * مستودع الملاحظات الشخصية — المرجع: 02-ARCHITECTURE.md (القسم 5) و 03-REALM-DATABASE-SCHEMA.md
+ * الملاحظة مرتبطة بسورة (وجزئيًا بآية)، وتُخزن محليًا فقط ولا تُرسل لأي خدمة خارجية (02-8).
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import type { PersonalNote } from '../database/realm/types';
+
+export interface NoteInput {
+  surahNumber: number;
+  ayahNumber?: number | null;
+  title?: string | null;
+  body: string;
+  tags?: string[];
+}
+
+const SURAH_MIN = 1;
+const SURAH_MAX = 114;
+const AYAH_MAX = 286;
+
+class PersonalNoteRepository {
+  validate(input: NoteInput): void {
+    if (!Number.isInteger(input.surahNumber) || input.surahNumber < SURAH_MIN || input.surahNumber > SURAH_MAX) {
+      throw new Error(`رقم السورة خارج النطاق: ${input.surahNumber}`);
+    }
+    if (input.ayahNumber !== null && input.ayahNumber !== undefined) {
+      if (!Number.isInteger(input.ayahNumber) || (input.ayahNumber as number) < 1 || (input.ayahNumber as number) > AYAH_MAX) {
+        throw new Error(`رقم الآية خارج النطاق: ${input.ayahNumber}`);
+      }
+    }
+    if (!input.body || !input.body.trim()) {
+      throw new Error('نص الملاحظة فارغ');
+    }
+  }
+
+  async list(): Promise<PersonalNote[]> {
+    const realm = getOpenAppRealm();
+    const all = realm.objects('PersonalNote') as unknown as PersonalNote[];
+    return all.map((n) => ({ ...n })) as PersonalNote[];
+  }
+
+  async add(input: NoteInput): Promise<PersonalNote> {
+    this.validate(input);
+    const realm = getOpenAppRealm();
+    const now = new Date();
+    const id = `note-${input.surahNumber}-${now.getTime()}`;
+    realm.write(() => {
+      realm.create('PersonalNote', {
+        id,
+        surahNumber: input.surahNumber,
+        ayahNumber: input.ayahNumber ?? null,
+        title: input.title ?? null,
+        body: input.body,
+        tags: input.tags ?? [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+    const found = realm.objects('PersonalNote').filtered('id = $0', id)[0] as unknown as
+      | PersonalNote
+      | undefined;
+    if (!found) {
+      throw new Error('فشل حفظ الملاحظة');
+    }
+    return { ...found };
+  }
+
+  async update(id: string, input: Partial<NoteInput>): Promise<PersonalNote> {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('PersonalNote').filtered('id = $0', id)[0] as unknown as
+      | PersonalNote
+      | undefined;
+    if (!target) {
+      throw new Error('الملاحظة غير موجودة');
+    }
+    if (input.body !== undefined && !input.body.trim()) {
+      throw new Error('نص الملاحظة فارغ');
+    }
+    realm.write(() => {
+      const t = target as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(input)) {
+        if (value !== undefined) {
+          t[key] = value;
+        }
+      }
+      t.updatedAt = new Date();
+    });
+    return { ...target } as PersonalNote;
+  }
+
+  async remove(id: string): Promise<void> {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('PersonalNote').filtered('id = $0', id)[0];
+    if (target) {
+      realm.write(() => {
+        realm.delete(target);
+      });
+    }
+  }
+}
+
+let instance: PersonalNoteRepository | null = null;
+
+export function getPersonalNoteRepository(): PersonalNoteRepository {
+  if (!instance) {
+    instance = new PersonalNoteRepository();
+  }
+  return instance;
+}
+```
+
+#### `src/repositories/quran-content-repository.ts`  ·  7.1KB
+
+```ts
+/**
+ * مستودع محتوى المصحف (المرحلة 2) — الوصول إلى الحزمة الموثقة + البحث.
+ *
+ * القرار المعماري (03-REALM §3): المحتوى القرآني الثابت يبقى في **حزمة إصدار موثقة**
+ * (content/quran-data.json) منفصلًا عن بيانات المستخدم في Realm — لا يُنسخ 6236 سجلًا
+ * إلى قاعدة البيانات. ما يُسجل في Realm: سجل ContentMetadata واحد (05-1).
+ *
+ * الحزمة مُنتجة بمعرفة بوابة الاعتماد (05-5) في scripts/import-quran.mjs، وتُفحص
+ * هنا فحصًا بنيويًا خفيفًا عند أول استخدام (لا يُعاد حساب البصمة داخل التطبيق).
+ *
+ * هذا الملف خالٍ من أي اعتماد على React Native — يُختبر مباشرة على Node.
+ */
+import rawBundle from '../../content/quran-data.json';
+import { getOpenAppRealm } from '../database/realm/realm';
+
+export interface SurahInfo {
+  number: number;
+  nameArabic: string;
+  nameTransliteration: string;
+  ayahCount: number;
+  revelationType: 'مكية' | 'مدنية';
+  startLine: number;
+  rukus: number;
+}
+
+export interface AyahInfo {
+  id: string;
+  surah: number;
+  ayah: number;
+  /** النص القرآني العثماني كما هو من المصدر — بلا أي تعديل (05-1) */
+  text: string;
+  /** حقل بحث مُطبَّع (03-REALM §5) — لا يُعرض للمستخدم */
+  search: string;
+  juz: number;
+  quarter: number;
+  manzil: number;
+  ruku: number;
+  page: number;
+  sajdah: boolean;
+}
+
+export interface QuranManifest {
+  id: string;
+  sourceName: string;
+  sourceVersion: string;
+  license: string;
+  sourceUrl: string;
+  textChecksum: string;
+  metadataSourceName: string;
+  metadataSourceVersion: string;
+  metadataLicense: string;
+  metadataUrl: string;
+  metadataChecksum: string;
+  surahCount: number;
+  ayahCount: number;
+  contentChecksum: string;
+  generatedAt: string;
+  searchNormalization: string;
+  validation: { status: string; checks: { id: string; name: string; ok: boolean; detail: string }[] };
+}
+
+export interface QuranBundle {
+  manifest: QuranManifest;
+  surahs: SurahInfo[];
+  ayahs: AyahInfo[];
+}
+
+const bundle = rawBundle as unknown as QuranBundle;
+
+let validated = false;
+
+/** فحص بنيوي للحزمة عند أول استخدام — فشل الفحص يظهر للمستخدم ولا يُخفى (02-1) */
+export function validateBundle(): void {
+  if (validated) return;
+  const m = bundle.manifest;
+  if (m.validation.status !== 'passed') {
+    throw new Error('حزمة المحتوى غير معتمدة (نتيجة بوابة الفحص ليست passed)');
+  }
+  if (bundle.surahs.length !== 114 || m.surahCount !== 114) {
+    throw new Error('حزمة المحتوى: عدد السور غير مطابق (114)');
+  }
+  let total = 0;
+  const seen = new Set<string>();
+  for (const a of bundle.ayahs) {
+    total += 1;
+    if (seen.has(a.id)) throw new Error(`حزمة المحتوى: معرف آية مكرر ${a.id}`);
+    seen.add(a.id);
+  }
+  if (total !== 6236 || m.ayahCount !== 6236) {
+    throw new Error('حزمة المحتوى: عدد الآيات غير مطابق (6236)');
+  }
+  validated = true;
+}
+
+export function getQuranManifest(): QuranManifest {
+  validateBundle();
+  return bundle.manifest;
+}
+
+export function getQuranSurahs(): SurahInfo[] {
+  validateBundle();
+  return bundle.surahs;
+}
+
+export function getSurahInfo(number: number): SurahInfo | undefined {
+  validateBundle();
+  return bundle.surahs[number - 1];
+}
+
+export function getAyahsOfSurah(surahNumber: number): AyahInfo[] {
+  validateBundle();
+  const info = getSurahInfo(surahNumber);
+  if (!info) return [];
+  return bundle.ayahs.slice(info.startLine, info.startLine + info.ayahCount);
+}
+
+export function getAyah(surahNumber: number, ayahNumber: number): AyahInfo | undefined {
+  validateBundle();
+  const info = getSurahInfo(surahNumber);
+  if (!info || ayahNumber < 1 || ayahNumber > info.ayahCount) return undefined;
+  return bundle.ayahs[info.startLine + ayahNumber - 1];
+}
+
+/**
+ * تطبيع عربي للبحث فقط (مطابق لخوارزمية الاستيراد — موثقة في manifest.searchNormalization):
+ * حذف التشكيل/التطويل/علامات المصحف، توحيد الألف (آأإٱ→ا)، ة→ه، ى→ي.
+ * يُطبَّق على الاستعلام ليطابق حقل search المشتق؛ النص الأصلي لا يُعرض مطبعًا أبدًا (03-REALM §5).
+ */
+export function normalizeArabicForSearch(s: string): string {
+  return s
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[\u06D6\u06D7\u06D8\u06D9\u06DA\u06DE\u06DF\u06E9]/g, '')
+    .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064A')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export interface AyahSearchHit {
+  surah: SurahInfo;
+  ayah: AyahInfo;
+}
+
+/**
+ * البحث في الآيات وأسماء السور (07-A: النتيجة تعرض اسم السورة ورقم الآية الصحيحين).
+ * مطابقة جزئية في: النص المطبع، الاسم العربي المطبع، الترحيل اللاتيني (case-insensitive).
+ */
+export function searchAyahs(query: string, limit = 100): AyahSearchHit[] {
+  validateBundle();
+  const q = normalizeArabicForSearch(query);
+  const qLatin = query.trim().toLowerCase();
+  if (!q && !qLatin) return [];
+  const hits: AyahSearchHit[] = [];
+  for (const s of bundle.surahs) {
+    const nameMatch =
+      (q.length > 0 && normalizeArabicForSearch(s.nameArabic).includes(q)) ||
+      (qLatin.length > 0 && s.nameTransliteration.toLowerCase().includes(qLatin));
+    const ayahs = getAyahsOfSurah(s.number);
+    for (const a of ayahs) {
+      if (a.search.includes(q) || nameMatch) {
+        hits.push({ surah: s, ayah: a });
+        if (hits.length >= limit) return hits;
+      }
+    }
+  }
+  return hits;
+}
+
+/** رقم إلى أرقام هندية شرقية (٠-٩) لعرض الترقيم */
+export function toArabicIndic(n: number): string {
+  return String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+}
+
+const META_ID = `content:${bundle.manifest.id}`;
+
+/**
+ * تسجيل Metadata المحتوى في قاعدة بيانات المستخدم (05-1: تسجيل المصدر والإصدار
+ * والترخيص وتاريخ الاستيراد + 05-5-7: نتيجة الفحص). العملية idempotent — سجل واحد ثابت.
+ */
+export function ensureContentMetadata(): void {
+  const m = getQuranManifest();
+  const realm = getOpenAppRealm();
+  const existing = realm.objects('ContentMetadata').filtered('id = $0', META_ID)[0];
+  if (existing) return;
+  realm.write(() => {
+    realm.create('ContentMetadata', {
+      id: META_ID,
+      contentType: 'quran-data',
+      sourceName: `${m.sourceName} + ${m.metadataSourceName}`,
+      sourceVersion: `نص ${m.sourceVersion} / وصفية ${m.metadataSourceVersion}`,
+      license: m.license,
+      sourceUrl: m.sourceUrl,
+      checksum: m.contentChecksum,
+      importedAt: new Date(),
+      validationStatus: m.validation.status,
+    });
+  });
+}
+```
+
+#### `src/repositories/quran-qa-repository.ts`  ·  3.8KB
+
+```ts
+/**
+ * مستودع التفسير (المرحلة 4) — الوصول إلى حزمة التفسير المعتمدة.
+ *
+ * نفس القرار المعماري لحزمة المصحف (03-REALM §3): المحتوى الثابت في **حزمة إصدار
+ * موثقة** (content/tafsir-data.json) منفصلًا عن بيانات المستخدم في Realm.
+ *
+ * الحزمة مُنتجة بـ scripts/import-quran-qa.mjs وفق بوابة الاعتماد (05):
+ * - المصدر: api.quran.com — تفسير ابن كثير (resource_id 14) + تفسير البغوي/معاني
+ *   القرآن (resource_id 94)، كلاهما نصوص كلاسيكية في الملك العام.
+ * - لا توليد بنماذج لغوية؛ التطبيع الوحيد: إزالة وسوم HTML.
+ * - نواقص المصدر (ibnkathir: 31 آية موثقة في content/QA-IMPORT-REPORT.md) تُعرض
+ *   للمستخدم «لا يتوفر» — لا نختلق محتواها.
+ *
+ * هذا الملف خالٍ من أي اعتماد على React Native — يُختبر مباشرة على Node.
+ */
+import rawBundle from '../../content/tafsir-data.json';
+import { getAyah } from './quran-content-repository';
+
+export interface TafsirSourceMeta {
+  id: string;
+  resource_id: number;
+  name: string;
+  author: string;
+  note: string;
+  language: string;
+  accessed: string;
+  distribution: string;
+}
+
+interface RawBundle {
+  generatedAt: string;
+  pipeline: string;
+  sources: TafsirSourceMeta[];
+  gaps: Record<string, string[]>;
+  tafsir: Record<string, Record<string, string>>;
+}
+
+const bundle = rawBundle as unknown as RawBundle;
+
+/** فحص بنيوي خفيف عند أول استخدام — يطابق سياسة حزمة المصحف */
+let validated = false;
+export function validateTafsirBundle(): void {
+  if (validated) return;
+  if (!Array.isArray(bundle.sources) || bundle.sources.length !== 2) {
+    throw new Error('حزمة التفسير: عدد المصادر غير متوقع');
+  }
+  const keys = Object.keys(bundle.tafsir);
+  if (keys.length !== 6236) {
+    throw new Error(`حزمة التفسير: عدد المفاتيح ${keys.length} ≠ 6236`);
+  }
+  for (const src of bundle.sources) {
+    if (!Array.isArray(bundle.gaps[src.id])) {
+      throw new Error(`حزمة التفسير: نواقص المصدر ${src.id} غير موجودة`);
+    }
+  }
+  validated = true;
+}
+
+/** مصادر التفسير المعتمدة */
+export function getTafsirSources(): TafsirSourceMeta[] {
+  validateTafsirBundle();
+  return bundle.sources;
+}
+
+/** قائمة المفاتيح التي لا يغطيها المصدر (نواقص موثقة) */
+export function getTafsirGaps(sourceId: string): string[] {
+  validateTafsirBundle();
+  return bundle.gaps[sourceId] ?? [];
+}
+
+/**
+ * نص التفسير للآية من مصدر معتمد.
+ * @returns النص (فقاعات مفصولة بـ \n) أو null إن غاب عن المصدر (نواقص موثقة/معرف مرفوض)
+ */
+export function getTafsir(surahNumber: number, ayahNumber: number, sourceId: string): string | null {
+  validateTafsirBundle();
+  if (!bundle.sources.some((s) => s.id === sourceId)) return null;
+  const entry = bundle.tafsir[`${surahNumber}:${ayahNumber}`];
+  const text = entry?.[sourceId];
+  return text && text.trim().length > 0 ? text : null;
+}
+
+/**
+ * كلمات الآية (تقسيم النص العثماني المعتمد على مسافات) — أساس «معاني الكلمات».
+ * النص من حزمة المصحف نفسها (رسم عثماني حرفي) فلا تغيير على القرآن أبدًا.
+ */
+export function getAyahWords(surahNumber: number, ayahNumber: number): string[] {
+  const ayah = getAyah(surahNumber, ayahNumber);
+  if (!ayah) return [];
+  return ayah.text.split(/\s+/).filter((w) => w.length > 0);
+}
+```
+
+#### `src/repositories/reading-session-repository.ts`  ·  7.9KB
+
+```ts
+/**
+ * مستودع جلسات القراءة (المرحلة 3) — 03-REALM-DATABASE-SCHEMA (ReadingSession/DailyProgress).
+ *
+ * قواعد الاحتساب (03-REALM §4 — «لا تعدّ الآية مقروءة بمجرد فتحها؛ حدّد قاعدة واضحة»):
+ * R1) الجلسة تبدأ عند أول اختيار متعمد لآية في المصحف (لمس أو انتقال) بعد الإقلاع
+ *     أو بعد مغادرة تبويب المصحف — مجرد فتح السورة لا يبدؤها ولا يقرأ آياتها.
+ * R2) الآية تُعدّ «مقروءة» عند اختيارها (اختيار متعمد). اختيار الآية نفسها مرتين
+ *     في جلسة واحدة يُحتسب مرة واحدة (فريد داخل الجلسة).
+ * R3) الجلسة تُسجل في قاعدة البيانات عند بدايتها، وتُحدَّث حيًّا مع كل آية جديدة،
+ *     وتُنهى عند مغادرة تبويب المصحف أو إغلاق التطبيق.
+ * R4) عند إقلاع التطبيق: أي جلسة غير منتهية (انغلاق التطبيق/سقوط) تُنهي في إقلاع واحد
+ *     فقط — لا تكرر سجلات الجلسات عند إعادة الفتح (03-REALM §4 وبوابة 06-مرحلة 3).
+ * R5) «الورد اليومي» (DailyProgress.ayahsRead) يزداد بعدد آيات الجلسة الفريدة عند نهايتها،
+ *     ويُحسب ليوم بدء الجلسة بالتقويم المحلي. ملاحظة صريحة (حد v1): إعادة قراءة آية
+ *     في جلسة مستقلة خلال نفس اليوم تُحتسب قراءة جديدة — الفهرس اليومي للأيات
+ *     يُخطط لتحسينه في مراحل لاحقة دون تغيير المخطط.
+ * R6) pagesRead = 0 في v1 (احتساب صفحات المصحف المعروضة يأتي مع نمط الصفحات — مرحلة 6).
+ *
+ * الملف خالٍ من React Native — يُختبر مباشرة على Node.
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import type { DailyProgress, ReadingSession } from '../database/realm/types';
+
+/** معرف محلي ثابت دون تبعيات (لا نفترض وجود crypto.randomUUID على كل المنصات) */
+let seq = 0;
+function localId(prefix: string): string {
+  seq = (seq + 1) % 1296;
+  return `${prefix}-${Date.now().toString(36)}-${seq.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function todayKey(d: Date = new Date()): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+class ReadingSessionRepository {
+  /** R4: إنهاء الجلسات المفتوحة عند الإقلاع — مرة واحدة، دون تكرار سجلات */
+  closeOpenSessions(now: Date = new Date()): number {
+    const realm = getOpenAppRealm();
+    const open = realm.objects('ReadingSession').filtered('endedAt = NULL') as unknown as ReadingSession[];
+    // نثبّت العدد قبل المعاملة: الاستعلام حي يُعاد تقييمه بعد الكتابة فيعود 0
+    const count = open.length;
+    if (count === 0) return 0;
+    const snapshot = open.map((s) => ({
+      id: s.id,
+      startedAt: new Date(s.startedAt),
+      ayahsRead: s.ayahsRead,
+    }));
+    realm.write(() => {
+      for (const s of snapshot) {
+        const live = realm.objects('ReadingSession').filtered('id = $0', s.id)[0] as unknown as
+          | (ReadingSession & Record<string, unknown>);
+        if (!live) continue;
+        live.endedAt = now;
+        live.durationSeconds = Math.max(0, Math.round((now.getTime() - s.startedAt.getTime()) / 1000));
+        // الورد يضاف ليوم بدء الجلسة
+        this.addDailyProgress(s.startedAt, s.ayahsRead);
+      }
+    });
+    return count;
+  }
+
+  createSession(startSurahNumber: number, startAyahNumber: number, now: Date = new Date()): ReadingSession {
+    const realm = getOpenAppRealm();
+    const id = localId('rs');
+    realm.write(() => {
+      realm.create('ReadingSession', {
+        id,
+        startedAt: now,
+        endedAt: null,
+        startSurahNumber,
+        startAyahNumber,
+        endSurahNumber: null,
+        endAyahNumber: null,
+        pagesRead: 0, // R6
+        ayahsRead: 0,
+        durationSeconds: 0,
+        source: 'reader',
+        createdAt: now,
+      });
+    });
+    const created = realm.objects('ReadingSession').filtered('id = $0', id)[0] as unknown as ReadingSession;
+    return { ...created };
+  }
+
+  /** R3: تحديث حي مع كل آية جديدة (الفريد داخل الجلسة يحسبه المتتبع) */
+  updateSessionLive(
+    id: string,
+    endSurahNumber: number,
+    endAyahNumber: number,
+    ayahsRead: number,
+    now: Date = new Date(),
+  ): void {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('ReadingSession').filtered('id = $0', id)[0] as unknown as
+      | (ReadingSession & Record<string, unknown>)
+      | undefined;
+    if (!target) return;
+    realm.write(() => {
+      target.endSurahNumber = endSurahNumber;
+      target.endAyahNumber = endAyahNumber;
+      target.ayahsRead = ayahsRead;
+      target.durationSeconds = Math.max(0, Math.round((now.getTime() - target.startedAt.getTime()) / 1000));
+    });
+  }
+
+  endSession(
+    id: string,
+    endSurahNumber: number | null,
+    endAyahNumber: number | null,
+    ayahsRead: number,
+    now: Date = new Date(),
+  ): ReadingSession | null {
+    const realm = getOpenAppRealm();
+    const target = realm.objects('ReadingSession').filtered('id = $0', id)[0] as unknown as
+      | (ReadingSession & Record<string, unknown>)
+      | undefined;
+    if (!target) return null;
+    const startedAt = new Date(target.startedAt);
+    realm.write(() => {
+      if (target.endedAt === null || target.endedAt === undefined) {
+        target.endedAt = now;
+        target.durationSeconds = Math.max(0, Math.round((now.getTime() - startedAt.getTime()) / 1000));
+      }
+      if (endSurahNumber !== null) target.endSurahNumber = endSurahNumber;
+      if (endAyahNumber !== null) target.endAyahNumber = endAyahNumber;
+      target.ayahsRead = ayahsRead;
+      this.addDailyProgress(startedAt, ayahsRead); // R5 — مرة واحدة عند الإنهاء الفعلي
+    });
+    const final = realm.objects('ReadingSession').filtered('id = $0', id)[0] as unknown as ReadingSession;
+    return { ...final };
+  }
+
+  listSessions(limit = 50): ReadingSession[] {
+    const realm = getOpenAppRealm();
+    const all = realm.objects('ReadingSession') as unknown as ReadingSession[];
+    return [...all]
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .slice(0, limit)
+      .map((s) => ({ ...s }));
+  }
+
+  getTodayProgress(now: Date = new Date()): DailyProgress | null {
+    const realm = getOpenAppRealm();
+    const row = realm.objects('DailyProgress').filtered('id = $0', todayKey(now))[0] as unknown as
+      | DailyProgress
+      | undefined;
+    return row ? { ...row } : null;
+  }
+
+  private addDailyProgress(date: Date, ayahs: number): void {
+    if (ayahs <= 0) return;
+    const realm = getOpenAppRealm();
+    const key = todayKey(date);
+    const existing = realm.objects('DailyProgress').filtered('id = $0', key)[0] as unknown as
+      | (DailyProgress & Record<string, unknown>)
+      | undefined;
+    if (existing) {
+      existing.ayahsRead = (existing.ayahsRead ?? 0) + ayahs;
+      existing.updatedAt = new Date();
+    } else {
+      realm.create('DailyProgress', {
+        id: key,
+        date,
+        ayahsRead: ayahs,
+        pagesRead: 0,
+        audioMinutes: 0,
+        adhkarCompleted: 0,
+        wordsLearned: 0,
+        updatedAt: new Date(),
+      });
+    }
+  }
+}
+
+let instance: ReadingSessionRepository | null = null;
+export function getReadingSessionRepository(): ReadingSessionRepository {
+  if (!instance) instance = new ReadingSessionRepository();
+  return instance;
+}
+```
+
+#### `src/repositories/reading-session-tracker.ts`  ·  2.6KB
+
+```ts
+/**
+ * متتبع جلسة القراءة النشطة — Singleton وقت التشغيل (المرحلة 3).
+ * يطبّق قواعد R1–R3 الموثقة في reading-session-repository.ts:
+ * - تبدأ الجلسة عند أول اختيار متعمد لآية (startIfNeeded).
+ * - يُحتسب فريد (سورة، آية) داخل الجلسة (markRead).
+ * - تُنهي الجلسة (end) فتُسجل نهائيًا وتُضاف للورد اليومي — مرة واحدة.
+ *
+ * بلا اعتمادات React Native — يُختبر على Node.
+ */
+import { getReadingSessionRepository } from './reading-session-repository';
+
+interface ActiveSession {
+  id: string;
+  readIds: Set<string>;
+  lastSurah: number;
+  lastAyah: number;
+}
+
+class ReadingSessionTracker {
+  private active: ActiveSession | null = null;
+
+  get isActive(): boolean {
+    return this.active !== null;
+  }
+
+  /** R1: لا جلسة دون اختيار متعمد أول — فتح السورة وحدها لا يبدأها */
+  startIfNeeded(surahNumber: number, ayahNumber: number, now: Date = new Date()): void {
+    if (this.active) return;
+    const repo = getReadingSessionRepository();
+    const session = repo.createSession(surahNumber, ayahNumber, now);
+    this.active = { id: session.id, readIds: new Set(), lastSurah: surahNumber, lastAyah: ayahNumber };
+    repo.updateSessionLive(session.id, surahNumber, ayahNumber, 0, now);
+  }
+
+  /** R2: اختيار الآية = قراءة؛ الفريد داخل الجلسة */
+  markRead(surahNumber: number, ayahNumber: number, now: Date = new Date()): void {
+    if (!this.active) this.startIfNeeded(surahNumber, ayahNumber, now);
+    const a = this.active;
+    if (!a) return;
+    a.readIds.add(`${surahNumber}:${ayahNumber}`);
+    a.lastSurah = surahNumber;
+    a.lastAyah = ayahNumber;
+    getReadingSessionRepository().updateSessionLive(a.id, surahNumber, ayahNumber, a.readIds.size, now);
+  }
+
+  /** R3/R5: إنهاء الجلسة نهائيًا — مرة واحدة؛ يعيد عدد الآيات المحتسبة */
+  end(now: Date = new Date()): number {
+    if (!this.active) return 0;
+    const a = this.active;
+    this.active = null;
+    const count = a.readIds.size;
+    getReadingSessionRepository().endSession(a.id, a.lastSurah, a.lastAyah, count, now);
+    return count;
+  }
+
+  /** بيئة اختبار فقط */
+  reset(): void {
+    this.active = null;
+  }
+}
+
+let instance: ReadingSessionTracker | null = null;
+export function getReadingSessionTracker(): ReadingSessionTracker {
+  if (!instance) instance = new ReadingSessionTracker();
+  return instance;
+}
+```
+
+#### `src/repositories/settings-repository.ts`  ·  2.6KB
+
+```ts
+/**
+ * مستودع الإعدادات — سجل واحد ثابت (id = app-settings).
+ * المرجع: 02-ARCHITECTURE.md (القسم 5) و 03-REALM-DATABASE-SCHEMA.md
+ */
+import { getOpenAppRealm } from '../database/realm/realm';
+import {
+  APP_SETTINGS_ID,
+  DEFAULT_SETTINGS,
+  type AppSettings,
+  type GoalUnit,
+  type MushafBg,
+  type ReadingMode,
+} from '../database/realm/types';
+
+export interface UpdateSettingsInput {
+  theme?: AppSettings['theme'];
+  fontScale?: number;
+  readingMode?: ReadingMode;
+  mushafBg?: MushafBg;
+  lastSurahNumber?: number;
+  lastAyahNumber?: number;
+  lastReadAt?: Date | null;
+  dailyGoalUnit?: GoalUnit;
+  dailyGoalValue?: number;
+  notificationsEnabled?: boolean;
+  morningReminderTime?: string | null;
+  eveningReminderTime?: string | null;
+}
+
+class SettingsRepository {
+  private fetchRaw() {
+    const realm = getOpenAppRealm();
+    return realm.objects('AppSettings').filtered('id = $0', APP_SETTINGS_ID)[0] as unknown as
+      | AppSettings
+      | undefined;
+  }
+
+  /** يقرأ الإعدادات، وينشئها بقيمها الافتراضية عند أول تشغيل */
+  async getSettings(): Promise<AppSettings> {
+    const existing = this.fetchRaw();
+    if (existing) {
+      return { ...existing } as AppSettings;
+    }
+    const realm = getOpenAppRealm();
+    realm.write(() => {
+      realm.create('AppSettings', {
+        ...DEFAULT_SETTINGS,
+        id: APP_SETTINGS_ID,
+        updatedAt: new Date(),
+      });
+    });
+    const created = this.fetchRaw();
+    if (!created) {
+      throw new Error('تعذر إنشاء سجل الإعدادات');
+    }
+    return { ...created } as AppSettings;
+  }
+
+  /** يحدّث حقولًا محددة ويعيد النسخة المحدّثة (معاملة واحدة) */
+  async updateSettings(input: UpdateSettingsInput): Promise<AppSettings> {
+    // تأكد من وجود السجل أولًا
+    await this.getSettings();
+    const target = this.fetchRaw();
+    if (!target) {
+      throw new Error('تعذر الوصول لسجل الإعدادات');
+    }
+    const realm = getOpenAppRealm();
+    realm.write(() => {
+      const t = target as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(input)) {
+        if (value !== undefined) {
+          t[key] = value;
+        }
+      }
+      t.updatedAt = new Date();
+    });
+    return { ...target } as AppSettings;
+  }
+}
+
+let instance: SettingsRepository | null = null;
+
+export function getSettingsRepository(): SettingsRepository {
+  if (!instance) {
+    instance = new SettingsRepository();
+  }
+  return instance;
+}
+```
+
+### 8.6) src/features (الشاشات والتبويبات)
+
+#### `src/features/adhkar/adhkar-screen.tsx`  ·  15.0KB
+
+```tsx
+/**
+ * شاشة الأذكار — المرحلة 5.
+ *
+ * المحتوى: حزمة «حصن المسلم» المعتمدة (content/adhkar-data.json — بوابة 05).
+ * - 135 فئة / 345 ذكرًا، نص فصحى مشكّلة من المصدر (لا توليد).
+ * - النصوص القرآنية داخل الأذكار تُعرض من حزمة Tanzil المعتمدة (اتساق المصحف).
+ * - العدّاد: بيانات المستخدم الفعلية في Realm (DhikrProgress) — سجل يومي لكل ذكر
+ *   بسقف من المصدر؛ لا سجل = صفر (لا أرقام افتراضية).
+ * - التكرار: القيمة من المصدر إن وُجدت، وإلا 1 (قاعدة موثقة في الحزمة).
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, radius, spacing, touchTarget } from '../../design-system/tokens';
+import { Screen, Card, SectionTitle } from '../../design-system/components';
+import {
+  getAdhkarCategories,
+  getAdhkarItemsByCategory,
+  getAdhkarDisplayText,
+  type AdhkarItem,
+} from '../../repositories/adhkar-content-repository';
+import { getAdhkarProgressRepository } from '../../repositories/adhkar-progress-repository';
+import { toArabicIndic } from '../quran/quran-content';
+
+interface ProgressState {
+  [adhkarId: string]: { countCompleted: number; targetCount: number };
+}
+
+export function AdhkarScreen() {
+  const { tokens, fontScale } = useTheme();
+  const focused = useIsFocused();
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [progress, setProgress] = useState<ProgressState>({});
+  const [loaded, setLoaded] = useState(false);
+
+  const categories = useMemo(() => getAdhkarCategories(), []);
+  const items = useMemo(
+    () => (categoryId === null ? [] : getAdhkarItemsByCategory(categoryId)),
+    [categoryId],
+  );
+
+  const loadProgress = useCallback(() => {
+    const repo = getAdhkarProgressRepository();
+    const next: ProgressState = {};
+    const targets = categoryId === null
+      ? categories.flatMap(c => getAdhkarItemsByCategory(c.id).map(i => i.id))
+      : items.map(i => i.id);
+    for (const id of targets) {
+      const p = repo.getToday(id);
+      next[id] = { countCompleted: p.countCompleted, targetCount: p.targetCount };
+    }
+    setProgress(next);
+    setLoaded(true);
+  }, [categoryId, categories, items]);
+
+  // قراءة التقدم عند كل تركيز (تغيير اليوم/مزامنة مع بقية الشاشات)
+  useEffect(() => {
+    if (!focused) return;
+    loadProgress();
+  }, [focused, loadProgress]);
+
+  const increment = (item: AdhkarItem) => {
+    const repo = getAdhkarProgressRepository();
+    const p = repo.recordDhikr(item.id, item.count);
+    setProgress(prev => ({ ...prev, [item.id]: { countCompleted: p.countCompleted, targetCount: p.targetCount } }));
+  };
+
+  const resetItem = (item: AdhkarItem) => {
+    const repo = getAdhkarProgressRepository();
+    repo.resetToday(item.id);
+    setProgress(prev => ({ ...prev, [item.id]: { countCompleted: 0, targetCount: item.count } }));
+  };
+
+  const norm = (s: string) => s.replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim();
+  const q = norm(search);
+  const shownCategories = q
+    ? categories.filter(c => norm(c.name).includes(q))
+    : categories;
+  const shownItems = q
+    ? items.filter(i => norm(i.zekr).includes(q) || norm(i.category).includes(q))
+    : items;
+
+  const catProgress = (cid: number) => {
+    const its = getAdhkarItemsByCategory(cid);
+    let done = 0;
+    for (const it of its) {
+      const p = progress[it.id];
+      if (p && p.countCompleted >= it.count) done += 1;
+    }
+    return { done, total: its.length };
+  };
+
+  const currentCat = categoryId === null ? null : categories.find(c => c.id === categoryId) ?? null;
+  const catDone = currentCat ? catProgress(currentCat.id) : null;
+
+  return (
+    <Screen>
+      <View style={{ gap: spacing.md, flex: 1 }}>
+        <SectionTitle>
+          {currentCat ? currentCat.name : 'الأذكار'}
+        </SectionTitle>
+
+        {currentCat && catDone ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: spacing.sm,
+            }}
+          >
+            <Text style={{ color: tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+              اكتمل {toArabicIndic(catDone.done)} من {toArabicIndic(catDone.total)} اليوم
+            </Text>
+            {catDone.done > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`إعادة عدادات ${currentCat.name}`}
+                onPress={() => {
+                  const repo = getAdhkarProgressRepository();
+                  for (const it of items) repo.resetToday(it.id);
+                  loadProgress();
+                }}
+                style={({ pressed }) => ({
+                  minWidth: touchTarget,
+                  minHeight: touchTarget,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.md,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  borderColor: tokens.border,
+                  backgroundColor: pressed ? tokens.background : 'transparent',
+                })}
+              >
+                <Text style={{ color: tokens.accent, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.uiMedium }}>
+                  تصفير العدادات
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder={currentCat ? 'البحث في الأذكار…' : 'البحث في الفئات…'}
+          placeholderTextColor={tokens.muted}
+          accessibilityLabel="بحث في الأذكار"
+          style={{
+            minHeight: touchTarget,
+            paddingHorizontal: spacing.md,
+            borderRadius: radius.card,
+            backgroundColor: tokens.surface,
+            borderWidth: 1,
+            borderColor: tokens.border,
+            color: tokens.text,
+            fontSize: fontSizes.md * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        />
+
+        {currentCat ? (
+          <FlatList
+            data={shownItems}
+            keyExtractor={i => i.id}
+            contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
+            ListEmptyComponent={
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui, padding: spacing.lg, textAlign: 'center' }}>
+                لا أذكار تطابق البحث
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const p = progress[item.id] ?? { countCompleted: 0, targetCount: item.count };
+              const completed = p.countCompleted >= item.count;
+              const text = getAdhkarDisplayText(item);
+              return (
+                <Card>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`زاد ذكر: ${item.category}، التكرار ${toArabicIndic(p.countCompleted)} من ${toArabicIndic(item.count)}`}
+                    onPress={() => increment(item)}
+                    disabled={completed}
+                    style={({ pressed }) => ({
+                      gap: spacing.sm,
+                      padding: spacing.md,
+                      borderRadius: radius.card,
+                      borderWidth: 1,
+                      borderColor: completed ? tokens.accent : tokens.border,
+                      backgroundColor: pressed ? tokens.background : 'transparent',
+                      opacity: completed ? 0.9 : 1,
+                      minHeight: touchTarget,
+                    })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+                      <Text
+                        style={{
+                          color: tokens.text,
+                          fontSize: fontSizes.md * fontScale,
+                          fontFamily: fontFamilies.ui,
+                          flex: 1,
+                        }}
+                      >
+                        {text}
+                      </Text>
+                      {completed ? (
+                        <View
+                          style={{
+                            minWidth: touchTarget,
+                            height: touchTarget,
+                            borderRadius: radius.card,
+                            backgroundColor: tokens.accent,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          accessibilityLabel="مكتمل"
+                        >
+                          <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontFamily: fontFamilies.uiBold }}>
+                            ✓
+                          </Text>
+                        </View>
+                      ) : (
+                        <View
+                          style={{
+                            minWidth: touchTarget,
+                            height: touchTarget,
+                            borderRadius: radius.card,
+                            borderWidth: 1,
+                            borderColor: tokens.accent,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text style={{ color: tokens.accent, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.uiBold }}>
+                            {toArabicIndic(p.countCompleted)}/{toArabicIndic(item.count)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {item.reference ? (
+                      <Text numberOfLines={1} style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                        المصدر: {item.reference}
+                      </Text>
+                    ) : null}
+                    {item.description ? (
+                      <Text numberOfLines={2} style={{ color: tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+                        {item.description}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                  {p.countCompleted > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`تصفير ${item.category}`}
+                      onPress={() => resetItem(item)}
+                      style={({ pressed }) => ({
+                        alignSelf: 'flex-end',
+                        minWidth: touchTarget,
+                        minHeight: touchTarget,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingHorizontal: spacing.sm,
+                        borderRadius: radius.sm,
+                        backgroundColor: pressed ? tokens.background : 'transparent',
+                      })}
+                    >
+                      <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                        تصفير
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </Card>
+              );
+            }}
+          />
+        ) : (
+          <FlatList
+            data={shownCategories}
+            keyExtractor={c => String(c.id)}
+            contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
+            ListEmptyComponent={
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui, padding: spacing.lg, textAlign: 'center' }}>
+                لا فئات تطابق البحث
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const p = catProgress(item.id);
+              return (
+                <Card>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`فتح فئة ${item.name}، اكتمل ${toArabicIndic(p.done)} من ${toArabicIndic(p.total)} اليوم`}
+                    onPress={() => {
+                      setSearch('');
+                      setCategoryId(item.id);
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: spacing.md,
+                      minHeight: touchTarget,
+                      paddingVertical: spacing.xs,
+                      borderRadius: radius.card,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text numberOfLines={1} style={{ color: tokens.text, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.uiMedium, flex: 1 }}>
+                      {item.name}
+                    </Text>
+                    <Text style={{ color: p.done === p.total && p.total > 0 ? tokens.accent : tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+                      {toArabicIndic(p.done)}/{toArabicIndic(p.total)}
+                    </Text>
+                  </Pressable>
+                </Card>
+              );
+            }}
+          />
+        )}
+
+        {currentCat ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="العودة إلى الفئات"
+            onPress={() => setCategoryId(null)}
+            style={({ pressed }) => ({
+              minHeight: touchTarget,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: radius.card,
+              borderWidth: 1,
+              borderColor: tokens.border,
+              backgroundColor: pressed ? tokens.background : 'transparent',
+            })}
+          >
+            <Text style={{ color: tokens.accent, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.uiMedium }}>
+              ← كل الفئات
+            </Text>
+          </Pressable>
+        ) : null}
+
+        <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui, textAlign: 'center' }}>
+          المصدر: حصن المسلم من أذكار الكتاب والسنة — نص معتمد (بوابات 05)؛ الآيات من Tanzil Uthmani المعتمد
+        </Text>
+      </View>
+    </Screen>
+  );
+}
+```
+
+#### `src/features/audio/audio-screen.tsx`  ·  688B
+
+```tsx
+/**
+ * شاشة الاستماع — المرحلة 1: هيكل الشاشة فقط.
+ * المشغل والتلاوات تُبنى في المرحلة 6 مع توثيق القارئ وشروط الاستخدام لكل ملف (05-4).
+ */
+import { Screen, EmptyState } from '../../design-system/components';
+
+export function AudioScreen() {
+  return (
+    <Screen>
+      <EmptyState
+        title="الاستماع"
+        subtitle="التلاوات والمرخّص لها للتنزيل تُستورد في المرحلة 6 مع توثيق القارئ ومصدر الملف وشروط الاستخدام."
+        stage="يُبنى في المرحلة 6"
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/home/home-screen.tsx`  ·  8.1KB
+
+```tsx
+/**
+ * الشاشة الرئيسية — المرحلة 1:
+ * تحية + بطاقة «تابع قراءتك» (آخر موضع حقيقي من قاعدة البيانات) + تقدم الورد اليومي
+ * (من سجل التقدم اليومي الفعلي) + اختصارات فعّالة.
+ *
+ * الأقسام التي تعتمد على محتوى يُستورد لاحقًا (آية اليوم، أذكار اليوم، الخطة)
+ * لا تظهر هنا حتى تكتمل وحداتها — لا عناصر وهمية (01-6).
+ */
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Screen, Card, SectionTitle } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, spacing, touchTarget } from '../../design-system/tokens';
+import { getSettingsRepository } from '../../repositories/settings-repository';
+import { getSurahInfo } from '../../features/quran/quran-content';
+import { getOpenAppRealm } from '../../database/realm/realm';
+import type { AppSettings } from '../../database/realm/types';
+import type { RootTabNavigation } from '../../app/root-navigator';
+
+const GOAL_UNITS_LABEL: Record<string, string> = {
+  ayahs: 'آيات',
+  pages: 'صفحات',
+  juz: 'أجزاء',
+};
+
+function todayKey(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+export function HomeScreen() {
+  const { tokens, fontScale } = useTheme();
+  const navigation = useNavigation<RootTabNavigation>();
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [ayahsToday, setAyahsToday] = useState(0);
+
+  const load = useCallback(async () => {
+    const s = await getSettingsRepository().getSettings();
+    setSettings(s);
+    const realm = getOpenAppRealm();
+    const row = realm.objects('DailyProgress').filtered('id = $0', todayKey())[0] as unknown as
+      | { ayahsRead: number }
+      | undefined;
+    setAyahsToday(row?.ayahsRead ?? 0);
+  }, []);
+
+  // إعادة التحميل عند كل تركيز للتبويب — «تابع قراءتك» يعكس آخر موضع حاليًا
+  // + إعادة قراءة مؤجلة (700ms) لالتقاط إنهاء جلسة القراءة التي تكتب في نفس اللحظة
+  // (مغادرة تبويب المصحف تنهي الجلسة — سباق توقيت موثق)
+  useFocusEffect(
+    useCallback(() => {
+      void load().catch((e) => console.warn('[home] فشل تحميل البيانات', e));
+      const t = setTimeout(() => {
+        void load().catch(() => {});
+      }, 700);
+      return () => clearTimeout(t);
+    }, [load]),
+  );
+
+  const goal = settings?.dailyGoalValue ?? 20;
+  const goalUnit = GOAL_UNITS_LABEL[settings?.dailyGoalUnit ?? 'ayahs'] ?? 'آيات';
+  const progress = goal > 0 ? Math.min(1, ayahsToday / goal) : 0;
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        {/* 1) تحية */}
+        <Text
+          style={{
+            color: tokens.text,
+            fontSize: fontSizes.xl * fontScale,
+            fontWeight: '700',
+            fontFamily: fontFamilies.uiBold,
+          }}
+        >
+          سلامٌ عليك
+        </Text>
+
+        {/* 2) تابع قراءتك */}
+        <Pressable
+          onPress={() =>
+            settings &&
+            navigation.navigate('المصحف', {
+              screen: 'Surah',
+              params: {
+                surahNumber: settings.lastSurahNumber,
+                ayahNumber: settings.lastAyahNumber,
+              },
+            })
+          }
+          style={({ pressed }) => ({
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: tokens.border,
+            backgroundColor: tokens.surface,
+            padding: 16,
+            opacity: pressed ? 0.8 : 1,
+          })}
+          accessibilityRole="button"
+        >
+          <SectionTitle>تابع قراءتك</SectionTitle>
+          {settings ? (
+            <>
+              <Text
+                style={{
+                  color: tokens.text,
+                  fontSize: fontSizes.lg * fontScale,
+                  fontWeight: '700',
+                  fontFamily: fontFamilies.uiBold,
+                }}
+              >
+                {(() => {
+                  const s = getSurahInfo(settings.lastSurahNumber);
+                  return s
+                    ? `${s.nameArabic} — آية ${settings.lastAyahNumber}`
+                    : `سورة ${settings.lastSurahNumber} — آية ${settings.lastAyahNumber}`;
+                })()}
+              </Text>
+              <Text
+                style={{
+                  color: tokens.muted,
+                  fontSize: fontSizes.sm * fontScale,
+                  fontFamily: fontFamilies.ui,
+                  marginTop: spacing.xs,
+                }}
+              >
+                {settings.lastReadAt
+                  ? `آخر قراءة: ${new Date(settings.lastReadAt).toLocaleDateString('ar')}`
+                  : 'ابدأ قراءتك الأولى — آخر موضع: الفاتحة 1'}
+              </Text>
+            </>
+          ) : (
+            <Text
+              style={{
+                color: tokens.muted,
+                fontSize: fontSizes.md * fontScale,
+                fontFamily: fontFamilies.ui,
+              }}
+            >
+              جارٍ التحميل…
+            </Text>
+          )}
+        </Pressable>
+
+        {/* 3) تقدم الورد اليومي (بيانات فعلية) */}
+        <Card>
+          <SectionTitle>الورد اليومي</SectionTitle>
+          <Text
+            style={{
+              color: tokens.text,
+              fontSize: fontSizes.md * fontScale,
+              fontFamily: fontFamilies.uiMedium,
+            }}
+          >
+            {ayahsToday} / {goal} {goalUnit}
+          </Text>
+          <View
+            style={{
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: tokens.border,
+              marginTop: spacing.sm,
+              overflow: 'hidden',
+            }}
+          >
+            <View
+              style={{
+                height: '100%',
+                width: `${progress * 100}%`,
+                backgroundColor: tokens.accent,
+                borderRadius: 4,
+              }}
+            />
+          </View>
+          <Text
+            style={{
+              color: tokens.muted,
+              fontSize: fontSizes.xs * fontScale,
+              fontFamily: fontFamilies.ui,
+              marginTop: spacing.xs,
+            }}
+          >
+            يُحتسب الورد من القراءة الفعلية المسجلة في المصحف
+          </Text>
+        </Card>
+
+        {/* 7) اختصارات فعّالة */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Shortcut label="المصحف" onPress={() => navigation.navigate('المصحف')} />
+          <Shortcut label="الأذكار" onPress={() => navigation.navigate('الأذكار')} />
+          <Shortcut label="الاستماع" onPress={() => navigation.navigate('الاستماع')} />
+        </View>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+function Shortcut({ label, onPress }: { label: string; onPress: () => void }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          minHeight: touchTarget,
+          backgroundColor: tokens.surface,
+          borderWidth: 1,
+          borderColor: tokens.border,
+          borderRadius: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={{
+          color: tokens.primary,
+          fontSize: fontSizes.sm * fontScale,
+          fontWeight: '500',
+          fontFamily: fontFamilies.uiMedium,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+```
+
+#### `src/features/library/about-screen.tsx`  ·  5.0KB
+
+```tsx
+/**
+ * شاشة «حول التطبيق» — متطلب إلزامي (01-§8): عرض حقوق المصمم والمطور
+ * وشفافية مصادر المحتوى وتراخيصها (01-7، 05).
+ */
+import { Linking, ScrollView, Text, View } from 'react-native';
+import { Screen, Card, SectionTitle } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, spacing } from '../../design-system/tokens';
+import appConfig from '../../../app.json';
+
+export function AboutScreen() {
+  const { tokens, fontScale } = useTheme();
+  const version = (appConfig as { expo?: { version?: string } }).expo?.version ?? '0.1.0';
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        <Card style={{ alignItems: 'center', gap: spacing.xs }}>
+          <Text
+            style={{
+              color: tokens.primary,
+              fontSize: fontSizes.xl * fontScale,
+              fontWeight: '700',
+              fontFamily: fontFamilies.uiBold,
+            }}
+          >
+            رفيق القرآن الكريم
+          </Text>
+          <Text style={{ color: tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+            الإصدار {version}
+          </Text>
+        </Card>
+
+        <Card style={{ gap: spacing.xs }}>
+          <SectionTitle>الحقوق</SectionTitle>
+          <Text style={[text(tokens, fontScale)]}>حقوق المصمم والمطور: إيهاب عجور أبو الأمير</Text>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            جميع الحقوق محفوظة — لا يُنسخ التطبيق أو يُوزَّع دون إذن صريح.
+          </Text>
+        </Card>
+
+        <Card style={{ gap: spacing.xs }}>
+          <SectionTitle>مصادر المحتوى والتراخيص</SectionTitle>
+          <Text style={[text(tokens, fontScale)]}>
+            نص القرآن الكريم: Tanzil Project — Tanzil Quran Text (Uthmani) الإصدار 1.1
+          </Text>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            الترخيص: Creative Commons Attribution 3.0 (نسخ حرفية دون تغيير مع نسبة المصدر)
+          </Text>
+          <Text
+            onPress={() => void Linking.openURL('https://tanzil.net/')}
+            style={[text(tokens, fontScale), { color: tokens.primary }]}
+          >
+            tanzil.net
+          </Text>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            يُعرض النص بالرسم العثماني حرفيًا (Tanzil v1.1) دون أي تغيير — والتطبيع للبحث فقط.
+          </Text>
+          <View style={{ height: spacing.xs }} />
+          <Text style={[text(tokens, fontScale)]}>
+            التفسير: ابن كثير (ت 1373هـ) والبغوي — معاني القرآن (ت 516هـ) — نصوص كلاسيكية في الملك العام
+          </Text>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            مُوزَّعة عبر api.quran.com مع اعتماد بصمات SHA-256 وبوابة فحص (سجل الاعتماد في حزمة الإصدار)
+          </Text>
+          <View style={{ height: spacing.xs }} />
+          <Text style={[text(tokens, fontScale)]}>
+            الأذكار: حصن المسلم من أذكار الكتاب والسنة (د. سعيد القحطاني) — نص ديني في الملك العام
+          </Text>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            اعتمد عبر بوابة فحص (345 ذكرًا / 135 فئة) مع تحقق مستقل (MIT)؛ الآيات المعروضة من Tanzil المعتمد
+          </Text>
+          <View style={{ height: spacing.xs }} />
+          <Text style={[text(tokens, fontScale)]}>خط الواجهة: Tajawal — OFL (Boutros International)</Text>
+          <Text style={[text(tokens, fontScale)]}>خط المصحف: Amiri Quran — OFL (Amiri Project)</Text>
+          <Text style={[text(tokens, fontScale)]}>قاعدة البيانات المحلية: Realm — Apache 2.0</Text>
+        </Card>
+
+        <Card style={{ gap: spacing.xs }}>
+          <SectionTitle>الخصوصية</SectionTitle>
+          <Text style={[text(tokens, fontScale), { color: tokens.muted }]}>
+            جميع بياناتك (الإعدادات والعلامات والملاحظات والتقدم) تُخزَّن محليًا على جهازك فقط،
+            ولا تُرسل إلى أي خدمة خارجية، ولا يلزمك إنشاء حساب.
+          </Text>
+        </Card>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+function text(tokens: ReturnType<typeof useTheme>['tokens'], fontScale: number) {
+  return {
+    color: tokens.text,
+    fontSize: fontSizes.sm * fontScale,
+    fontFamily: fontFamilies.ui,
+    lineHeight: fontSizes.sm * fontScale * 1.8,
+  } as const;
+}
+```
+
+#### `src/features/library/bookmarks-screen.tsx`  ·  8.8KB
+
+```tsx
+/**
+ * قائمة العلامات المرجعية — قراءات حقيقية من Realm مع إمكانية الحذف.
+ * الانتقال إلى الموضع يتم من شاشة المصحف (المرحلة 2).
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { Screen, Card, EmptyState } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, radius, spacing, touchTarget } from '../../design-system/tokens';
+import { getBookmarkRepository } from '../../repositories/bookmark-repository';
+import type { Bookmark } from '../../database/realm/types';
+
+export function BookmarksScreen() {
+  const { tokens, fontScale } = useTheme();
+  const [items, setItems] = useState<Bookmark[] | null>(null);
+  const [editing, setEditing] = useState<Bookmark | null>(null);
+  const [labelDraft, setLabelDraft] = useState('');
+
+  const load = useCallback(async () => {
+    setItems(await getBookmarkRepository().list());
+  }, []);
+
+  const openEdit = (b: Bookmark) => {
+    setLabelDraft(b.label ?? '');
+    setEditing(b);
+  };
+
+  const saveLabel = async () => {
+    if (!editing) return;
+    await getBookmarkRepository().updateLabel(editing.id, labelDraft.trim() || null);
+    setEditing(null);
+    await load();
+  };
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[bookmarks]', e));
+  }, [load]);
+
+  const confirmRemove = (b: Bookmark) => {
+    Alert.alert(
+      'حذف العلامة',
+      `حذف العلامة على سورة ${b.surahNumber} — آية ${b.ayahNumber}؟`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: async () => {
+            await getBookmarkRepository().remove(b.id);
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
+  if (items === null) {
+    return (
+      <Screen>
+        <Text
+          style={{
+            color: tokens.muted,
+            textAlign: 'center',
+            marginTop: spacing.xl,
+            fontSize: fontSizes.md * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        >
+          جارٍ التحميل…
+        </Text>
+      </Screen>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Screen>
+        <EmptyState
+          title="لا علامات بعد"
+          subtitle="عند قراءة المصحف يمكنك إضافة علامة مرجعية على أي آية لتعود إليها لاحقًا."
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <FlatList
+        data={items}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        renderItem={({ item }) => (
+          <Card style={{ paddingVertical: spacing.sm + 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: tokens.text,
+                    fontSize: fontSizes.md * fontScale,
+                    fontWeight: '500',
+                    fontFamily: fontFamilies.uiMedium,
+                  }}
+                >
+                  {item.label
+                    ? item.label
+                    : `سورة ${item.surahNumber} — آية ${item.ayahNumber}`}
+                </Text>
+                <Text
+                  style={{
+                    color: tokens.muted,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.ui,
+                  }}
+                >
+                  {item.label
+                    ? `سورة ${item.surahNumber} — آية ${item.ayahNumber} • ${new Date(item.createdAt).toLocaleDateString('ar')}`
+                    : new Date(item.createdAt).toLocaleDateString('ar')}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`تعديل تسمية علامة سورة ${item.surahNumber} آية ${item.ayahNumber}`}
+                onPress={() => openEdit(item)}
+                style={({ pressed }) => ({
+                  minHeight: 36,
+                  borderRadius: radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.primary,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.sm + 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    color: tokens.primary,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.uiMedium,
+                  }}
+                >
+                  تسمية
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`حذف العلامة سورة ${item.surahNumber} آية ${item.ayahNumber}`}
+                onPress={() => confirmRemove(item)}
+                style={({ pressed }) => ({
+                  minHeight: 36,
+                  minWidth: 36,
+                  borderRadius: radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.error,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.sm + 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    color: tokens.error,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.uiMedium,
+                  }}
+                >
+                  حذف
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+        )}
+      />
+
+      {/* مودال تسمية العلامة */}
+      <Modal visible={editing !== null} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: tokens.surface, borderRadius: radius.card * 1.5, padding: spacing.lg, gap: spacing.md }}>
+            <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+              تسمية العلامة
+            </Text>
+            {editing ? (
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+                سورة {editing.surahNumber} — آية {editing.ayahNumber}
+              </Text>
+            ) : null}
+            <TextInput
+              value={labelDraft}
+              onChangeText={setLabelDraft}
+              placeholder="مثال: آية الكرسي"
+              placeholderTextColor={tokens.muted}
+              style={{
+                color: tokens.text,
+                minHeight: touchTarget,
+                borderWidth: 1,
+                borderColor: tokens.border,
+                borderRadius: radius.sm,
+                paddingHorizontal: spacing.md,
+                fontSize: fontSizes.md * fontScale,
+                fontFamily: fontFamilies.ui,
+              }}
+            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void saveLabel()}
+                style={{
+                  flex: 1,
+                  minHeight: touchTarget,
+                  backgroundColor: tokens.primary,
+                  borderRadius: radius.full,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: fontSizes.md * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                  حفظ
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setEditing(null)}
+                style={{
+                  flex: 1,
+                  minHeight: touchTarget,
+                  borderWidth: 1,
+                  borderColor: tokens.border,
+                  borderRadius: radius.full,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: tokens.text, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui }}>
+                  إلغاء
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/downloads-screen.tsx`  ·  660B
+
+```tsx
+/**
+ * شاشة التنزيلات — المرحلة 1: حالة فارغة صادقة.
+ * تنزيل المحتوى المرخّص يُبنى في المرحلة 6 مع احترام الرخص (05-4).
+ */
+import { Screen, EmptyState } from '../../design-system/components';
+
+export function DownloadsScreen() {
+  return (
+    <Screen>
+      <EmptyState
+        title="التنزيلات"
+        subtitle="تنزيل المحتوى المرخّص للعمل دون اتصال يُبنى في المرحلة 6، ولا يُنزّل أي ملف لا تسمح رخصته بذلك."
+        stage="يُبنى في المرحلة 6"
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/favorites-screen.tsx`  ·  4.7KB
+
+```tsx
+/**
+ * قائمة الآيات المفضلة — قراءات حقيقية من Realm مع إمكانية الحذف.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, Text, View } from 'react-native';
+import { Screen, Card, EmptyState } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, radius, spacing } from '../../design-system/tokens';
+import { getFavoriteAyahRepository } from '../../repositories/favorite-ayah-repository';
+import { getAyah, getSurahInfo, toArabicIndic } from '../../features/quran/quran-content';
+import type { FavoriteAyah } from '../../database/realm/types';
+
+export function FavoritesScreen() {
+  const { tokens, fontScale } = useTheme();
+  const [items, setItems] = useState<FavoriteAyah[] | null>(null);
+
+  const load = useCallback(async () => {
+    setItems(await getFavoriteAyahRepository().list());
+  }, []);
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[favorites]', e));
+  }, [load]);
+
+  const confirmRemove = (f: FavoriteAyah) => {
+    Alert.alert(
+      'إزالة من المفضلة',
+      `إزالة سورة ${f.surahNumber} — آية ${f.ayahNumber} من المفضلة؟`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'إزالة',
+          style: 'destructive',
+          onPress: async () => {
+            await getFavoriteAyahRepository().remove(f.id);
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
+  if (items === null) {
+    return (
+      <Screen>
+        <Text
+          style={{
+            color: tokens.muted,
+            textAlign: 'center',
+            marginTop: spacing.xl,
+            fontSize: fontSizes.md * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        >
+          جارٍ التحميل…
+        </Text>
+      </Screen>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Screen>
+        <EmptyState
+          title="لا آيات مفضلة بعد"
+          subtitle="أضف الآيات التي تودّ العودة إليها من لوحة آية المصحف (المرحلة 2)."
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <FlatList
+        data={items}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        renderItem={({ item }) => {
+          const ayah = getAyah(item.surahNumber, item.ayahNumber);
+          const surah = getSurahInfo(item.surahNumber);
+          return (
+          <Card style={{ paddingVertical: spacing.sm + 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    color: tokens.text,
+                    fontSize: fontSizes.quran * fontScale,
+                    fontFamily: fontFamilies.quran,
+                    lineHeight: fontSizes.quran * fontScale + 8,
+                  }}
+                >
+                  {ayah?.text ?? '…'}
+                </Text>
+                <Text
+                  style={{
+                    color: tokens.muted,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.ui,
+                  }}
+                >
+                  {surah?.nameArabic ?? `سورة ${item.surahNumber}`} — آية {toArabicIndic(item.ayahNumber)}
+                  {'  •  '}
+                  {new Date(item.createdAt).toLocaleDateString('ar')}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`إزالة سورة ${item.surahNumber} آية ${item.ayahNumber} من المفضلة`}
+                onPress={() => confirmRemove(item)}
+                style={({ pressed }) => ({
+                  minHeight: 36,
+                  minWidth: 36,
+                  borderRadius: radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.error,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.sm + 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    color: tokens.error,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.uiMedium,
+                  }}
+                >
+                  إزالة
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+          );
+        }}
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/library-home-screen.tsx`  ·  4.2KB
+
+```tsx
+/**
+ * شاشة «مكتبتي» — نقطة الدخول: قائمة الأقسام مع عدّادات حقيقية من قاعدة البيانات.
+ * (01-PRODUCT-SPEC §6: تضم الخطط، المفضلة، العلامات، الملاحظات، التنزيلات، الإعدادات)
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Screen, Card, ListRow, SectionTitle } from '../../design-system/components';
+import { spacing } from '../../design-system/tokens';
+import { getBookmarkRepository } from '../../repositories/bookmark-repository';
+import { getFavoriteAyahRepository } from '../../repositories/favorite-ayah-repository';
+import { getPersonalNoteRepository } from '../../repositories/personal-note-repository';
+import { getReadingSessionRepository } from '../../repositories/reading-session-repository';
+import type { LibraryStackParamList } from './library-stack';
+
+export function LibraryHomeScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<LibraryStackParamList>>();
+  const [counts, setCounts] = useState({ bookmarks: 0, favorites: 0, notes: 0, sessions: 0 });
+
+  const load = useCallback(async () => {
+    const [b, f, n, s] = await Promise.all([
+      getBookmarkRepository().list(),
+      getFavoriteAyahRepository().list(),
+      getPersonalNoteRepository().list(),
+      getReadingSessionRepository().listSessions(100),
+    ]);
+    setCounts({ bookmarks: b.length, favorites: f.length, notes: n.length, sessions: s.length });
+  }, []);
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[library]', e));
+  }, [load]);
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        <SectionTitle style={{ marginTop: spacing.xs }}>القراءات المحفوظة</SectionTitle>
+        <Card style={{ paddingVertical: spacing.sm + 2, gap: spacing.sm }}>
+          <ListRow
+            title="العلامات المرجعية"
+            trailing={counts.bookmarks > 0 ? String(counts.bookmarks) : undefined}
+            onPress={() => navigation.navigate('Bookmarks')}
+            showChevron
+          />
+          <ListRow
+            title="المفضلة"
+            trailing={counts.favorites > 0 ? String(counts.favorites) : undefined}
+            onPress={() => navigation.navigate('Favorites')}
+            showChevron
+          />
+          <ListRow
+            title="الملاحظات"
+            trailing={counts.notes > 0 ? String(counts.notes) : undefined}
+            onPress={() => navigation.navigate('Notes')}
+            showChevron
+          />
+          <ListRow
+            title="سجل القراءة"
+            subtitle="جلسات القراءة والورد اليومي"
+            trailing={counts.sessions > 0 ? String(counts.sessions) : undefined}
+            onPress={() => navigation.navigate('Sessions')}
+            showChevron
+          />
+        </Card>
+
+        <SectionTitle>التخطيط</SectionTitle>
+        <Card style={{ paddingVertical: spacing.sm + 2, gap: spacing.sm }}>
+          <ListRow
+            title="الخطط"
+            subtitle="خطط القراءة والختمة"
+            onPress={() => navigation.navigate('Plans')}
+            showChevron
+          />
+          <ListRow
+            title="التنزيلات"
+            subtitle="محتوى مرخّص للعمل دون اتصال"
+            onPress={() => navigation.navigate('Downloads')}
+            showChevron
+          />
+        </Card>
+
+        <SectionTitle>التطبيق</SectionTitle>
+        <Card style={{ paddingVertical: spacing.sm + 2, gap: spacing.sm }}>
+          <ListRow
+            title="الإعدادات"
+            subtitle="المظهر وحجم الخط والورد اليومي"
+            onPress={() => navigation.navigate('Settings')}
+            showChevron
+          />
+          <ListRow
+            title="حول التطبيق"
+            subtitle="الحقوق ومصادر المحتوى"
+            onPress={() => navigation.navigate('About')}
+            showChevron
+          />
+        </Card>
+      </ScrollView>
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/library-stack.tsx`  ·  2.7KB
+
+```tsx
+/**
+ * «مكتبتي» — Stack: العلامات | المفضلة | الملاحظات | الخطط | التنزيلات | الإعدادات | حول التطبيق
+ * (01-PRODUCT-SPEC §6)
+ */
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTheme } from '../../design-system/theme';
+import { LibraryHomeScreen } from './library-home-screen';
+import { BookmarksScreen } from './bookmarks-screen';
+import { FavoritesScreen } from './favorites-screen';
+import { NotesScreen } from './notes-screen';
+import { SessionsScreen } from './sessions-screen';
+import { PlansScreen } from './plans-screen';
+import { DownloadsScreen } from './downloads-screen';
+import { SettingsScreen } from './settings-screen';
+import { AboutScreen } from './about-screen';
+
+export type LibraryStackParamList = {
+  LibraryHome: undefined;
+  Bookmarks: undefined;
+  Favorites: undefined;
+  Notes: undefined;
+  Sessions: undefined;
+  Plans: undefined;
+  Downloads: undefined;
+  Settings: undefined;
+  About: undefined;
+};
+
+const Stack = createNativeStackNavigator<LibraryStackParamList>();
+
+export function LibraryStack() {
+  const { tokens } = useTheme();
+  return (
+    <Stack.Navigator
+      initialRouteName="LibraryHome"
+      screenOptions={{
+        headerStyle: { backgroundColor: tokens.background },
+        headerTintColor: tokens.text,
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '700' },
+        contentStyle: { backgroundColor: tokens.background },
+      }}
+    >
+      <Stack.Screen
+        name="LibraryHome"
+        component={LibraryHomeScreen}
+        options={{ title: 'مكتبتي', headerShown: false }}
+      />
+      <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'العلامات المرجعية' }} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ title: 'المفضلة' }} />
+      <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'الملاحظات' }} />
+      <Stack.Screen name="Sessions" component={SessionsScreen} options={{ title: 'سجل القراءة' }} />
+      <Stack.Screen name="Plans" component={PlansScreen} options={{ title: 'الخطط' }} />
+      <Stack.Screen name="Downloads" component={DownloadsScreen} options={{ title: 'التنزيلات' }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'الإعدادات' }} />
+      <Stack.Screen name="About" component={AboutScreen} options={{ title: 'حول التطبيق' }} />
+    </Stack.Navigator>
+  );
+}
+
+export type LibraryScreenProps<T extends keyof LibraryStackParamList> = NativeStackScreenProps<
+  LibraryStackParamList,
+  T
+>;
+```
+
+#### `src/features/library/notes-screen.tsx`  ·  6.3KB
+
+```tsx
+/**
+ * قائمة الملاحظات الشخصية — قراءات حقيقية من Realm مع إمكانية الحذف.
+ * إنشاء الملاحظات مرتبط بالمصحف (المرحلة 2) — لا يُخترع مسار إدخال منفصل الآن.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { Screen, Card, EmptyState } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, radius, spacing } from '../../design-system/tokens';
+import { getPersonalNoteRepository } from '../../repositories/personal-note-repository';
+import type { PersonalNote } from '../../database/realm/types';
+
+export function NotesScreen() {
+  const { tokens, fontScale } = useTheme();
+  const [items, setItems] = useState<PersonalNote[] | null>(null);
+  const [query, setQuery] = useState('');
+
+  const load = useCallback(async () => {
+    setItems(await getPersonalNoteRepository().list());
+  }, []);
+
+  // فلتر بحث على العنوان/النص (03-REALM §5: تطبيع للبحث فقط دون تعديل المخزن)
+  const filtered = useMemo(() => {
+    if (!items) return items;
+    const q = query.trim();
+    if (!q) return items;
+    return items.filter(
+      (n) =>
+        (n.title ?? '').includes(q) ||
+        n.body.includes(q) ||
+        n.tags.some((t) => t.includes(q)),
+    );
+  }, [items, query]);
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[notes]', e));
+  }, [load]);
+
+  const confirmRemove = (n: PersonalNote) => {
+    Alert.alert(
+      'حذف الملاحظة',
+      'سيُحذف نص الملاحظة نهائيًا من هذا الجهاز.',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: async () => {
+            await getPersonalNoteRepository().remove(n.id);
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
+  if (items === null) {
+    return (
+      <Screen>
+        <Text
+          style={{
+            color: tokens.muted,
+            textAlign: 'center',
+            marginTop: spacing.xl,
+            fontSize: fontSizes.md * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        >
+          جارٍ التحميل…
+        </Text>
+      </Screen>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Screen>
+        <EmptyState
+          title="لا ملاحظات بعد"
+          subtitle="ستتمكن من كتابة ملاحظاتك الخاصة مرتبطة بسورة أو آية من شاشة المصحف (المرحلة 2)."
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="ابحث في ملاحظاتك (عنوان/نص/وسم)…"
+          placeholderTextColor={tokens.muted}
+          style={{
+            color: tokens.text,
+            minHeight: 44,
+            backgroundColor: tokens.surface,
+            borderWidth: 1,
+            borderColor: query ? tokens.primary : tokens.border,
+            borderRadius: radius.full,
+            paddingHorizontal: spacing.md,
+            fontSize: fontSizes.md * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        />
+      </View>
+      <FlatList
+        data={filtered}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        ListEmptyComponent={
+          query.trim() ? (
+            <Text style={{ color: tokens.muted, textAlign: 'center', marginTop: spacing.lg, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui }}>
+              لا ملاحظات تطابق «{query}»
+            </Text>
+          ) : undefined
+        }
+        renderItem={({ item }) => (
+          <Card style={{ paddingVertical: spacing.sm + 4, gap: spacing.xs }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: tokens.text,
+                    fontSize: fontSizes.md * fontScale,
+                    fontWeight: '700',
+                    fontFamily: fontFamilies.uiBold,
+                  }}
+                >
+                  {item.title || `سورة ${item.surahNumber}${item.ayahNumber ? ` — آية ${item.ayahNumber}` : ''}`}
+                </Text>
+                <Text
+                  style={{
+                    color: tokens.muted,
+                    fontSize: fontSizes.xs * fontScale,
+                    fontFamily: fontFamilies.ui,
+                    marginTop: 2,
+                  }}
+                >
+                  {new Date(item.updatedAt).toLocaleDateString('ar')}
+                  {item.tags.length > 0 ? ` • ${item.tags.join('، ')}` : ''}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="حذف الملاحظة"
+                onPress={() => confirmRemove(item)}
+                style={({ pressed }) => ({
+                  minHeight: 36,
+                  minWidth: 36,
+                  borderRadius: radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.error,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.sm + 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    color: tokens.error,
+                    fontSize: fontSizes.sm * fontScale,
+                    fontFamily: fontFamilies.uiMedium,
+                  }}
+                >
+                  حذف
+                </Text>
+              </Pressable>
+            </View>
+            <Text
+              numberOfLines={2}
+              style={{
+                color: tokens.text,
+                fontSize: fontSizes.sm * fontScale,
+                fontFamily: fontFamilies.ui,
+              }}
+            >
+              {item.body}
+            </Text>
+          </Card>
+        )}
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/plans-screen.tsx`  ·  587B
+
+```tsx
+/**
+ * شاشة الخطط — المرحلة 1: حالة فارغة صادقة.
+ * خطط القراءة والختمة تُبنى في المرحلتين 3 و6.
+ */
+import { Screen, EmptyState } from '../../design-system/components';
+
+export function PlansScreen() {
+  return (
+    <Screen>
+      <EmptyState
+        title="الخطط"
+        subtitle="خطط الختمة والأهداف اليومية تُبنى في المراحل 3 و6 مع احتساب الإنجاز الفعلي فقط."
+        stage="يُبنى في المرحلتين 3 و6"
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/sessions-screen.tsx`  ·  5.1KB
+
+```tsx
+/**
+ * سجل جلسات القراءة (المرحلة 3) — 06-IMPLEMENTATION-PLAN: «سجل جلسات القراءة».
+ * قائمة حية من Realm: كل جلسة (بداية/نهاية/آيات/مدة) + ملخص اليوم مقابل الهدف.
+ * لا تكرار سجلات عند إعادة فتح الشاشة (06-بوابة المرحلة 3) — القراءة فقط من المستودع.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Text, View } from 'react-native';
+import { Screen, Card, EmptyState, SectionTitle } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, radius, spacing } from '../../design-system/tokens';
+import {
+  getReadingSessionRepository,
+} from '../../repositories/reading-session-repository';
+import { getSettingsRepository } from '../../repositories/settings-repository';
+import { getSurahInfo, toArabicIndic } from '../../features/quran/quran-content';
+import type { ReadingSession } from '../../database/realm/types';
+
+export function SessionsScreen() {
+  const { tokens, fontScale } = useTheme();
+  const [sessions, setSessions] = useState<ReadingSession[] | null>(null);
+  const [todayAyahs, setTodayAyahs] = useState(0);
+  const [goal, setGoal] = useState(20);
+
+  const load = useCallback(async () => {
+    const [list, today, settings] = await Promise.all([
+      getReadingSessionRepository().listSessions(50),
+      getReadingSessionRepository().getTodayProgress(),
+      getSettingsRepository().getSettings(),
+    ]);
+    setSessions(list);
+    setTodayAyahs(today?.ayahsRead ?? 0);
+    setGoal(settings.dailyGoalValue);
+  }, []);
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[sessions]', e));
+  }, [load]);
+
+  if (sessions === null) {
+    return (
+      <Screen>
+        <Text style={{ color: tokens.muted, textAlign: 'center', marginTop: spacing.xl, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui }}>
+          جارٍ التحميل…
+        </Text>
+      </Screen>
+    );
+  }
+
+  const pos = (s: number, a: number) => {
+    const name = getSurahInfo(s)?.nameArabic ?? `سورة ${s}`;
+    return `${name} ${toArabicIndic(a)}`;
+  };
+
+  return (
+    <Screen>
+      <FlatList
+        data={sessions}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        ListHeaderComponent={
+          <View style={{ gap: spacing.sm, marginBottom: spacing.xs }}>
+            <Card>
+              <SectionTitle>اليوم</SectionTitle>
+              <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                {toArabicIndic(todayAyahs)} / {toArabicIndic(goal)} آية
+              </Text>
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui, marginTop: spacing.xs }}>
+                الورد يُحتسب من آيات الجلسات المنتهية اليوم (قاعدة R5 الموثقة)
+              </Text>
+            </Card>
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            title="لا جلسات قراءة بعد"
+            subtitle="عند اختيارك آيات من المصحف تُسجل جلسة تلقائيًا وتظهر هنا مع عدد الآيات والمدة."
+          />
+        }
+        renderItem={({ item }) => (
+          <Card style={{ gap: spacing.xs }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ color: tokens.text, fontSize: fontSizes.md * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                {toArabicIndic(item.ayahsRead)} آية
+              </Text>
+              {item.endedAt ? (
+                <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                  {Math.max(1, Math.round(item.durationSeconds / 60))} دقيقة
+                </Text>
+              ) : (
+                <View style={{ backgroundColor: tokens.accent, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 }}>
+                  <Text style={{ color: '#fff', fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.uiBold }}>
+                    جارية
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={{ color: tokens.text, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+              من {pos(item.startSurahNumber, item.startAyahNumber)}
+              {item.endSurahNumber != null && item.endAyahNumber != null
+                ? ` إلى ${pos(item.endSurahNumber, item.endAyahNumber)}`
+                : ''}
+            </Text>
+            <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+              {new Date(item.startedAt).toLocaleDateString('ar')} —{' '}
+              {new Date(item.startedAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </Card>
+        )}
+      />
+    </Screen>
+  );
+}
+```
+
+#### `src/features/library/settings-screen.tsx`  ·  11.0KB
+
+```tsx
+/**
+ * شاشة الإعدادات الأولية — المرحلة 1 (متطلب P0: حجم الخط والوضع الفاتح/الداكن + الدافئ).
+ * القيم تُحفظ فورًا في قاعدة البيانات المحلية (SettingsRepository).
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { LibraryStackParamList } from './library-stack';
+import { Screen, Card, SectionTitle, Button } from '../../design-system/components';
+import { useTheme } from '../../design-system/theme';
+import {
+  fontFamilies,
+  fontSizes,
+  radius,
+  spacing,
+  themes,
+  mushafPalettes,
+  mushafBgLabels,
+  type MushafBgChoice,
+  type ThemeName,
+} from '../../design-system/tokens';
+import { getSettingsRepository } from '../../repositories/settings-repository';
+import type { AppSettings, GoalUnit, MushafBg } from '../../database/realm/types';
+
+const GOAL_UNITS: { value: GoalUnit; label: string }[] = [
+  { value: 'ayahs', label: 'آيات' },
+  { value: 'pages', label: 'صفحات' },
+  { value: 'juz', label: 'أجزاء' },
+];
+
+export function SettingsScreen() {
+  const { tokens, themeName, fontScale, themeLabels, setTheme, setFontScale } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<LibraryStackParamList>>();
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  const load = useCallback(async () => {
+    setSettings(await getSettingsRepository().getSettings());
+  }, []);
+
+  useEffect(() => {
+    void load().catch((e) => console.warn('[settings]', e));
+  }, [load]);
+
+  const updateGoal = async (patch: Partial<Pick<AppSettings, 'dailyGoalUnit' | 'dailyGoalValue'>>) => {
+    const s = await getSettingsRepository().updateSettings(patch);
+    setSettings(s);
+  };
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        {/* المظهر */}
+        <Card style={{ gap: spacing.sm }}>
+          <SectionTitle>المظهر</SectionTitle>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {(Object.keys(themeLabels) as ThemeName[]).map((name) => {
+              const active = themeName === name;
+              const t = themes[name];
+              return (
+                <Pressable
+                  key={name}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setTheme(name)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    minHeight: 72,
+                    borderRadius: radius.sm,
+                    borderWidth: active ? 2 : 1,
+                    borderColor: active ? tokens.primary : tokens.border,
+                    backgroundColor: t.background,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    opacity: pressed ? 0.8 : 1,
+                  })}
+                >
+                  <View
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: t.primary,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: t.text,
+                      fontSize: fontSizes.sm * fontScale,
+                      fontWeight: active ? '700' : '500',
+                      fontFamily: fontFamilies.uiMedium,
+                    }}
+                  >
+                    {themeLabels[name]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+
+
+        {/* صفحة المصحف — ألوان مريحة للعين (مرحلة 4) */}
+        <Card style={{ gap: spacing.sm }}>
+          <SectionTitle>صفحة المصحف</SectionTitle>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {(Object.keys(mushafBgLabels) as MushafBgChoice[]).map((bg) => {
+              const active = settings?.mushafBg === bg;
+              const swatch = bg === 'theme' ? themes[themeName].background : mushafPalettes[bg].page;
+              return (
+                <Pressable
+                  key={bg}
+                  accessibilityRole="button"
+                  accessibilityLabel={`خلفية المصحف: ${mushafBgLabels[bg]}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => void getSettingsRepository().updateSettings({ mushafBg: bg as MushafBg }).then(setSettings)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    minHeight: 72,
+                    borderRadius: radius.sm,
+                    borderWidth: active ? 2 : 1,
+                    borderColor: active ? tokens.primary : tokens.border,
+                    backgroundColor: swatch,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    opacity: pressed ? 0.8 : 1,
+                  })}
+                >
+                  <View
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: bg === 'theme' ? themes[themeName].primary : mushafPalettes[bg].quran,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: bg === 'theme' ? themes[themeName].text : mushafPalettes[bg].quran,
+                      fontSize: fontSizes.xs * fontScale,
+                      fontWeight: active ? '700' : '500',
+                      fontFamily: fontFamilies.uiMedium,
+                    }}
+                  >
+                    {mushafBgLabels[bg]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+            خلفية مريحة للعين لصفحة القراءة فقط — لا تتغير بقية الواجهة
+          </Text>
+        </Card>
+
+        {/* حجم الخط */}
+        <Card style={{ gap: spacing.sm }}>
+          <SectionTitle>حجم الخط</SectionTitle>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <StepButton
+              label="−"
+              onPress={() => setFontScale(fontScale - 0.05)}
+              disabled={fontScale <= 0.75}
+            />
+            <Text
+              style={{
+                color: tokens.text,
+                fontSize: fontSizes.lg * fontScale,
+                fontFamily: fontFamilies.uiMedium,
+                minWidth: 72,
+                textAlign: 'center',
+              }}
+            >
+              {Math.round(fontScale * 100)}٪
+            </Text>
+            <StepButton
+              label="+"
+              onPress={() => setFontScale(fontScale + 0.05)}
+              disabled={fontScale >= 1.5}
+            />
+          </View>
+          <Text
+            style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}
+          >
+            من 75٪ إلى 150٪ — يُطبَّق على واجهة التطبيق
+          </Text>
+        </Card>
+
+        {/* الورد اليومي */}
+        <Card style={{ gap: spacing.sm }}>
+          <SectionTitle>الورد اليومي</SectionTitle>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xs }}>
+            {GOAL_UNITS.map((u) => {
+              const active = settings?.dailyGoalUnit === u.value;
+              return (
+                <Pressable
+                  key={u.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => void updateGoal({ dailyGoalUnit: u.value })}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    minHeight: 40,
+                    borderRadius: radius.sm,
+                    borderWidth: active ? 2 : 1,
+                    borderColor: active ? tokens.primary : tokens.border,
+                    backgroundColor: active ? tokens.primary : 'transparent',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: pressed ? 0.8 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: active ? tokens.onPrimary : tokens.text,
+                      fontSize: fontSizes.sm * fontScale,
+                      fontWeight: '500',
+                      fontFamily: fontFamilies.uiMedium,
+                    }}
+                  >
+                    {u.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <StepButton
+              label="−"
+              onPress={() =>
+                void updateGoal({
+                  dailyGoalValue: Math.max(1, (settings?.dailyGoalValue ?? 20) - 1),
+                })
+              }
+              disabled={(settings?.dailyGoalValue ?? 20) <= 1}
+            />
+            <Text
+              style={{
+                color: tokens.text,
+                fontSize: fontSizes.lg * fontScale,
+                fontFamily: fontFamilies.uiMedium,
+                minWidth: 72,
+                textAlign: 'center',
+              }}
+            >
+              {settings?.dailyGoalValue ?? 20}
+            </Text>
+            <StepButton
+              label="+"
+              onPress={() =>
+                void updateGoal({
+                  dailyGoalValue: (settings?.dailyGoalValue ?? 20) + 1,
+                })
+              }
+            />
+          </View>
+        </Card>
+
+        <Button
+          label="حول التطبيق"
+          variant="outline"
+          onPress={() => navigation.navigate('About')}
+        />
+      </ScrollView>
+    </Screen>
+  );
+}
+
+function StepButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: tokens.border,
+        backgroundColor: tokens.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Text
+        style={{
+          color: tokens.primary,
+          fontSize: fontSizes.lg * fontScale,
+          fontWeight: '700',
+          fontFamily: fontFamilies.uiBold,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+```
+
+#### `src/features/quran/mushaf-home-screen.tsx`  ·  6.9KB
+
+```tsx
+/**
+ * فهرس السور + البحث — المرحلة 2 (06 / 07-A).
+ * قائمة 114 سورة بالترتيب + شريط بحث في الآيات وأسماء السور.
+ * البحث يطبّع الاستعلام (03-REALM §5) ولا يغيّر النص المعروض.
+ */
+import { useMemo, useState } from 'react';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, spacing, touchTarget, radius } from '../../design-system/tokens';
+import {
+  getQuranSurahs,
+  searchAyahs,
+  toArabicIndic,
+  type AyahSearchHit,
+  type SurahInfo,
+} from './quran-content';
+import type { MushafScreenProps } from './mushaf-stack';
+
+type Tab = 'surahs' | 'search';
+
+export function MushafHomeScreen({ navigation }: MushafScreenProps<'MushafHome'>) {
+  const { tokens, fontScale } = useTheme();
+  const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<Tab>('surahs');
+  const surahs = useMemo(() => getQuranSurahs(), []);
+  const hits: AyahSearchHit[] = useMemo(
+    () => (query.trim() ? searchAyahs(query, 100) : []),
+    [query],
+  );
+
+  const openSurah = (n: number, ayah?: number) =>
+    navigation.navigate('Surah', { surahNumber: n, ...(ayah ? { ayahNumber: ayah } : {}) });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: tokens.background }}>
+      {/* شريط البحث */}
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: tokens.surface,
+            borderWidth: 1,
+            borderColor: query ? tokens.primary : tokens.border,
+            borderRadius: radius.full,
+            paddingHorizontal: spacing.md,
+            minHeight: touchTarget,
+          }}
+        >
+          <Text style={{ color: tokens.muted, fontSize: fontSizes.md, marginLeft: spacing.xs }}>🔍</Text>
+          <TextInput
+            value={query}
+            onChangeText={(t) => {
+              setQuery(t);
+              setTab(t.trim() ? 'search' : 'surahs');
+            }}
+            placeholder="ابحث في الآيات أو أسماء السور…"
+            placeholderTextColor={tokens.muted}
+            style={{
+              flex: 1,
+              color: tokens.text,
+              fontSize: fontSizes.md * fontScale,
+              fontFamily: fontFamilies.ui,
+              paddingVertical: 0,
+            }}
+            returnKeyType="search"
+          />
+          {query ? (
+            <Pressable accessibilityRole="button" onPress={() => setQuery('')} hitSlop={8} style={{ minWidth: 28, minHeight: 28 }}>
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.md }}>✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {tab === 'search' ? (
+        <FlatList
+          data={hits}
+          keyExtractor={(h) => h.ayah.id}
+          contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
+          ListEmptyComponent={
+            <Text style={{ color: tokens.muted, fontSize: fontSizes.md, fontFamily: fontFamilies.ui, textAlign: 'center', paddingVertical: spacing.xl }}>
+              لا نتائج مطابقة لـ«{query}»
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => openSurah(item.ayah.surah, item.ayah.ayah)}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: tokens.surface,
+                  borderWidth: 1,
+                  borderColor: tokens.border,
+                  borderRadius: radius.card,
+                  padding: spacing.md,
+                  gap: spacing.xs,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: tokens.primary, fontSize: fontSizes.sm * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                  {item.surah.nameArabic} · آية {toArabicIndic(item.ayah.ayah)}
+                </Text>
+                <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                  الجزء {toArabicIndic(item.ayah.juz)}
+                </Text>
+              </View>
+              <Text
+                numberOfLines={2}
+                style={{
+                  color: tokens.text,
+                  fontSize: fontSizes.md * fontScale,
+                  fontFamily: fontFamilies.quran,
+                  lineHeight: fontSizes.quran * fontScale + 10,
+                }}
+              >
+                {item.ayah.text}
+              </Text>
+            </Pressable>
+          )}
+        />
+      ) : (
+        <FlatList
+          data={surahs}
+          keyExtractor={(s) => String(s.number)}
+          contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
+          renderItem={({ item }) => <SurahRow surah={item} onPress={() => openSurah(item.number)} />}
+        />
+      )}
+    </View>
+  );
+}
+
+function SurahRow({ surah, onPress }: { surah: SurahInfo; onPress: () => void }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: tokens.surface,
+          borderWidth: 1,
+          borderColor: tokens.border,
+          borderRadius: radius.card,
+          padding: spacing.md,
+          gap: spacing.md,
+          minHeight: touchTarget,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      {/* رقم السورة في دوائر */}
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          borderWidth: 1.5,
+          borderColor: tokens.accent,
+          transform: [{ rotate: '45deg' }],
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text
+          style={{
+            color: tokens.accent,
+            fontSize: fontSizes.sm * fontScale,
+            fontWeight: '700',
+            fontFamily: fontFamilies.uiBold,
+            transform: [{ rotate: '-45deg' }],
+          }}
+        >
+          {toArabicIndic(surah.number)}
+        </Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+          {surah.nameArabic}
+        </Text>
+        <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui, marginTop: 2 }}>
+          {toArabicIndic(surah.ayahCount)} آية · {surah.revelationType}
+        </Text>
+      </View>
+      <Text style={{ color: tokens.muted, fontSize: fontSizes.md }}>›</Text>
+    </Pressable>
+  );
+}
+```
+
+#### `src/features/quran/mushaf-stack.tsx`  ·  3.1KB
+
+```tsx
+/**
+ * «المصحف» — Stack (المرحلة 2): فهرس السور + البحث ← شاشة السورة.
+ * + مراقب جلسة القراءة (المرحلة 3): تُنهى الجلسة عند مغادرة تبويب المصحف
+ *   أو إخفاء التطبيق (قواعد R1–R3 في reading-session-repository.ts).
+ * المرجع: 06-IMPLEMENTATION-PLAN (المراحل 2–3) و 07-ACCEPTANCE-TESTS (A).
+ */
+import { useEffect } from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useIsFocused } from '@react-navigation/native';
+import { AppState, Platform } from 'react-native';
+import { useTheme } from '../../design-system/theme';
+import { MushafHomeScreen } from './mushaf-home-screen';
+import { SurahScreen } from './surah-screen';
+import { getReadingSessionTracker } from '../../repositories/reading-session-tracker';
+
+export type MushafStackParamList = {
+  MushafHome: undefined;
+  Surah: { surahNumber: number; ayahNumber?: number };
+};
+
+const Stack = createNativeStackNavigator<MushafStackParamList>();
+
+/** يُنهى الجلسة عند مغادرة التبويب (أو إخفاء التطبيق) — دون تسجيل دون قراءة فعلية */
+function SessionWatcher() {
+  const focused = useIsFocused();
+
+  useEffect(() => {
+    if (!focused) {
+      getReadingSessionTracker().end();
+    }
+  }, [focused]);
+
+  // الويب: إغلاق/إخفاء التبويب
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onHide = () => getReadingSessionTracker().end();
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') getReadingSessionTracker().end();
+    };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  // أجهزة: انتقال التطبيق للخلفية — تُنهى الجلسة فلا تبقى مفتوحة (R3)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') getReadingSessionTracker().end();
+    });
+    return () => sub.remove();
+  }, []);
+
+  return null;
+}
+
+export function MushafStack() {
+  const { tokens } = useTheme();
+  return (
+    <>
+      <SessionWatcher />
+      <Stack.Navigator
+        initialRouteName="MushafHome"
+        screenOptions={{
+          headerStyle: { backgroundColor: tokens.background },
+          headerTintColor: tokens.text,
+          headerShadowVisible: false,
+          headerTitleStyle: { fontWeight: '700' },
+          contentStyle: { backgroundColor: tokens.background },
+        }}
+      >
+        <Stack.Screen name="MushafHome" component={MushafHomeScreen} options={{ title: 'المصحف' }} />
+        <Stack.Screen name="Surah" component={SurahScreen} />
+      </Stack.Navigator>
+    </>
+  );
+}
+
+export type MushafScreenProps<T extends keyof MushafStackParamList> = NativeStackScreenProps<
+  MushafStackParamList,
+  T
+>;
+```
+
+#### `src/features/quran/quran-content.ts`  ·  671B
+
+```ts
+/**
+ * واجهة المحتوى في طبقة المصباح (مصحف) — إعادة تصدير من المستودع.
+ * المنطق الكامل (الحزمة، الفحص، البحث، Metadata) في
+ * src/repositories/quran-content-repository.ts — خالٍ من RN وقابل للاختبار على Node.
+ */
+export {
+  validateBundle,
+  getQuranManifest,
+  getQuranSurahs,
+  getSurahInfo,
+  getAyahsOfSurah,
+  getAyah,
+  normalizeArabicForSearch,
+  searchAyahs,
+  toArabicIndic,
+  ensureContentMetadata,
+  type SurahInfo,
+  type AyahInfo,
+  type QuranManifest,
+  type QuranBundle,
+  type AyahSearchHit,
+} from '../../repositories/quran-content-repository';
+```
+
+#### `src/features/quran/surah-screen.tsx`  ·  29.6KB
+
+```tsx
+/**
+ * شاشة السورة — قارئ المصحف (المرحلة 2).
+ *
+ * 07-A: عرض الآيات بالنص العثماني (Amiri Quran) مع العلامات كما هي،
+ * الانتقال إلى سورة/آية محددة، حفظ آخر موضع واستعادته، أدوات الآية
+ * (علامة/مفضلة/ملاحظة/نسخ/مشاركة — المرجع دون تغيير النص).
+ *
+ * قاعدة احتساب «آخر موضع» (03-REALM §4 — قاعدة واضحة موثقة):
+ * يُحدَّث الموضع عند فتح السورة (على الآية المستهدفة أو الآية الأولى)
+ * وعند اختيار أي آية — أي الموضع = الآية المعروضة/المختارة حاليًا.
+ */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  Text,
+  TextInput,
+  View,
+  Platform,
+} from 'react-native';
+import { setStringAsync } from 'expo-clipboard';
+import { useIsFocused } from '@react-navigation/native';
+import { useTheme } from '../../design-system/theme';
+import { fontFamilies, fontSizes, spacing, touchTarget, radius, mushafPalettes } from '../../design-system/tokens';
+import {
+  getAyahsOfSurah,
+  getSurahInfo,
+  getQuranSurahs,
+  toArabicIndic,
+  type AyahInfo,
+} from './quran-content';
+import { getSettingsRepository } from '../../repositories/settings-repository';
+import { getBookmarkRepository } from '../../repositories/bookmark-repository';
+import { getFavoriteAyahRepository } from '../../repositories/favorite-ayah-repository';
+import { getPersonalNoteRepository } from '../../repositories/personal-note-repository';
+import { getReadingSessionTracker } from '../../repositories/reading-session-tracker';
+import { getTafsir, getTafsirSources } from '../../repositories/quran-qa-repository';
+import type { MushafScreenProps } from './mushaf-stack';
+import type { MushafBg, PersonalNote } from '../../database/realm/types';
+
+export function SurahScreen({ navigation, route }: MushafScreenProps<'Surah'>) {
+  const { tokens, fontScale } = useTheme();
+  const { surahNumber, ayahNumber } = route.params;
+  const surah = getSurahInfo(surahNumber);
+  const ayahs = useMemo(() => getAyahsOfSurah(surahNumber), [surahNumber]);
+  const allSurahs = useMemo(() => getQuranSurahs(), []);
+
+  const [activeAyah, setActiveAyah] = useState<number>(ayahNumber ?? 1);
+  const [selectedAyah, setSelectedAyah] = useState<number | null>(null);
+  const [jumpInput, setJumpInput] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [note, setNote] = useState<PersonalNote | null>(null);
+  const [noteModal, setNoteModal] = useState<null | { title: string; body: string }>(null);
+  /** خلفية صفحة المصحف المريحة (إعداد مستقل عن سمة الواجهة) */
+  const [mushafBg, setMushafBg] = useState<MushafBg>('theme');
+  /** مصدر التفسير المفتوح — null = المودال مغلق */
+  const [tafsirSource, setTafsirSource] = useState<string | null>(null);
+  const tafsirSources = useMemo(() => getTafsirSources(), []);
+  const listRef = useRef<FlatList<AyahInfo>>(null);
+
+  const screenFocused = useIsFocused();
+  useEffect(() => {
+    if (!screenFocused) return;
+    let cancelled = false;
+    getSettingsRepository()
+      .getSettings()
+      .then((st) => {
+        if (!cancelled) setMushafBg(st.mushafBg);
+      })
+      .catch((e) => console.warn('[mushaf] فشل تحميل إعداد صفحة المصحف', e));
+    return () => {
+      cancelled = true;
+    };
+    // إعادة القراءة عند كل تركيز للشاشة: تغيير الإعداد يُطبَّق فورًا
+  }, [screenFocused]);
+
+  // لوحة صفحة القراءة: تتبّع السمة أو اللوحة المختارة (مريحة للعين)
+  const palette = mushafBg === 'theme' ? null : mushafPalettes[mushafBg];
+  const pageBg = palette?.page ?? tokens.background;
+  const quranInk = palette?.quran ?? tokens.text;
+  const metaInk = palette?.ayahMeta ?? tokens.muted;
+  const pageBorder = palette?.border ?? tokens.border;
+
+  const clampAyah = useCallback(
+    (n: number) => Math.min(Math.max(1, n), surah?.ayahCount ?? 1),
+    [surah],
+  );
+
+  // عنوان الترويسة باسم السورة (اسم المسار «Surah» إنجليزي — نعرض العربي)
+  useLayoutEffect(() => {
+    if (surah) navigation.setOptions({ title: `سورة ${surah.nameArabic}` });
+  }, [navigation, surah]);
+
+  /** حفظ آخر موضع (قاعدة موثقة أعلى الملف) */
+  const savePosition = useCallback(
+    (s: number, a: number) => {
+      void getSettingsRepository()
+        .updateSettings({ lastSurahNumber: s, lastAyahNumber: a, lastReadAt: new Date() })
+        .catch((e) => console.warn('[mushaf] فشل حفظ الموضع', e));
+    },
+    [],
+  );
+
+  // عند فتح السورة (أو الانتقال بينها دون آية محددة): الموضع يبدأ من الآية
+  // المستهدفة أو الأولى — ولا يُترك موضع السورة السابقة مضيئًا/محفوظًا
+  useEffect(() => {
+    const initial = clampAyah(route.params.ayahNumber ?? 1);
+    setActiveAyah(initial);
+    setSelectedAyah(null);
+    savePosition(surahNumber, initial);
+    // R1/R4: فتح موضع جديد في سورة = اختيار متعمد (كـ«الانتقال إلى آية»)
+    // — القراءة المتصلة تُدمج في الجلسة المفتوحة وتُحسب آية المقصودة
+    if (surahNumber >= 1 && surahNumber <= 114) {
+      getReadingSessionTracker().markRead(surahNumber, initial);
+    }
+    listRef.current?.scrollToIndex({ index: initial - 1, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surahNumber, route.params?.ayahNumber]);
+
+  // حالة أدوات الآية المختارة
+  useEffect(() => {
+    if (selectedAyah == null) {
+      setIsBookmarked(false);
+      setIsFavorited(false);
+      setNote(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const b = await getBookmarkRepository().exists(surahNumber, selectedAyah);
+      const f = await getFavoriteAyahRepository().exists(surahNumber, selectedAyah);
+      const notes = await getPersonalNoteRepository().list();
+      const n = notes.find((x) => x.surahNumber === surahNumber && x.ayahNumber === selectedAyah) ?? null;
+      if (!cancelled) {
+        setIsBookmarked(b);
+        setIsFavorited(f);
+        setNote(n);
+      }
+    })().catch((e) => console.warn('[mushaf] فشل تحميل حالة الآية', e));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAyah, surahNumber]);
+
+  if (!surah) {
+    return <Text style={{ color: tokens.text, padding: spacing.lg }}>سورة غير موجودة</Text>;
+  }
+
+  const goSurah = (n: number) => navigation.navigate('Surah', { surahNumber: n });
+
+  /** (ويب) حاوية التمرير القائمة فعليًا على الشاشة */
+  const findListScroller = (): HTMLElement | null => {
+    for (const d of Array.from(document.querySelectorAll('div'))) {
+      if (d.offsetParent === null) continue;
+      const r = d.getBoundingClientRect();
+      if (r.height > 100 && d.scrollHeight > d.clientHeight + 50 && d.querySelector('[role=button][aria-label^="آية"]')) {
+        return d;
+      }
+    }
+    return null;
+  };
+
+  /** (ويب) العنصر البعيد قد لا يكون مرمَّزًا بعد — اسحب نحو النهاية حتى يرمَّز
+   *  (محاولات محدودة؛ على الأجهزة الأصلية scrollToIndex يعمل مباشرة) */
+  const jumpToAyahWeb = (target: number, attempt = 8): void => {
+    const item = document.querySelector(`[role=button][aria-label^="آية ${target} "]`);
+    if (item) {
+      item.scrollIntoView({ block: 'center' });
+      return;
+    }
+    if (attempt <= 0) return;
+    const scroller = findListScroller();
+    if (!scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    setTimeout(() => jumpToAyahWeb(target, attempt - 1), 250);
+  };
+
+  const jumpToAyah = () => {
+    const n = Number(jumpInput.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+    if (!Number.isInteger(n) || n < 1) return;
+    const target = clampAyah(n);
+    setActiveAyah(target);
+    setSelectedAyah(target);
+    savePosition(surahNumber, target);
+    // R1: الانتقال إلى آية = اختيار متعمد — يُحسب في الجلسة كلمس الآية
+    getReadingSessionTracker().markRead(surahNumber, target);
+    setJumpInput('');
+    if (Platform.OS === 'web') {
+      setTimeout(() => jumpToAyahWeb(target), 80);
+    } else {
+      listRef.current?.scrollToIndex({ index: target - 1, animated: true });
+    }
+  };
+
+  const selectAyah = (a: number) => {
+    setActiveAyah(a);
+    setSelectedAyah(a);
+    savePosition(surahNumber, a);
+    // R1/R2: اختيار متعمد لآية = جلسة (إن لم تكن) + آية مقروءة (فريد داخل الجلسة)
+    getReadingSessionTracker().markRead(surahNumber, a);
+  };
+
+  const shareText = (a: AyahInfo) =>
+    `﴿${a.text}﴾\n— ${surah.nameArabic}، الآية ${toArabicIndic(a.ayah)}`;
+
+  const doCopy = async (a: AyahInfo) => {
+    await setStringAsync(shareText(a));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const doShare = async (a: AyahInfo) => {
+    const text = shareText(a);
+    if (Platform.OS === 'web') {
+      // الويب: لا يوجد Sheet أصلي — نسخة احتياطية موثقة: الحافظة
+      await setStringAsync(text);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+      return;
+    }
+    try {
+      await Share.share({ message: text }, { dialogTitle: 'مشاركة آية' });
+    } catch (e) {
+      console.warn('[mushaf] فشل المشاركة', e);
+    }
+  };
+
+  const toggleBookmark = async (a: AyahInfo) => {
+    const repo = getBookmarkRepository();
+    if (isBookmarked) {
+      const list = await repo.list();
+      const found = list.find((b) => b.surahNumber === surahNumber && b.ayahNumber === a.ayah);
+      if (found) await repo.remove(found.id);
+      setIsBookmarked(false);
+    } else {
+      await repo.add({ surahNumber, ayahNumber: a.ayah });
+      setIsBookmarked(true);
+    }
+  };
+
+  const toggleFavorite = async (a: AyahInfo) => {
+    const repo = getFavoriteAyahRepository();
+    if (isFavorited) {
+      const list = await repo.list();
+      const found = list.find((b) => b.surahNumber === surahNumber && b.ayahNumber === a.ayah);
+      if (found) await repo.remove(found.id);
+      setIsFavorited(false);
+    } else {
+      await repo.add({ surahNumber, ayahNumber: a.ayah });
+      setIsFavorited(true);
+    }
+  };
+
+  const saveNote = async (a: AyahInfo) => {
+    if (!noteModal) return;
+    const repo = getPersonalNoteRepository();
+    const body = noteModal.body.trim();
+    if (!body) return;
+    if (note) {
+      await repo.update(note.id, {
+        body,
+        title: noteModal.title.trim() ? noteModal.title : null,
+      });
+    } else {
+      await repo.add({
+        surahNumber,
+        ayahNumber: a.ayah,
+        title: noteModal.title.trim() ? noteModal.title : null,
+        body,
+      });
+    }
+    setNoteModal(null);
+    const notes = await repo.list();
+    setNote(notes.find((x) => x.surahNumber === surahNumber && x.ayahNumber === a.ayah) ?? null);
+  };
+
+  const deleteNote = async () => {
+    if (!note) return;
+    await getPersonalNoteRepository().remove(note.id);
+    setNote(null);
+  };
+
+  const selected = selectedAyah ? ayahs[selectedAyah - 1] : null;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: pageBg }}>
+      {/* معلومات السورة + تنقّل + شارة الرسم العثماني */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          gap: spacing.sm,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+          <Text style={{ color: metaInk, fontSize: fontSizes.sm * fontScale, fontFamily: fontFamilies.ui }}>
+            {toArabicIndic(surah.ayahCount)} آية · {surah.revelationType} · الجزء {toArabicIndic(ayahs[0]?.juz ?? 1)}
+          </Text>
+          <View
+            accessibilityLabel="الرسم العثماني — نص Tanzil v1.1 حرفي دون تعديل"
+            style={{ borderWidth: 1, borderColor: pageBorder, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 }}
+          >
+            <Text style={{ color: metaInk, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+              الرسم العثماني
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+          <NavBtn label="السابقة" disabled={surahNumber <= 1} onPress={() => goSurah(surahNumber - 1)} />
+          <NavBtn label="التالية" disabled={surahNumber >= 114} onPress={() => goSurah(surahNumber + 1)} />
+        </View>
+      </View>
+
+      {/* الانتقال إلى آية */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: spacing.md,
+          paddingBottom: spacing.sm,
+          gap: spacing.sm,
+        }}
+      >
+        <TextInput
+          value={jumpInput}
+          onChangeText={setJumpInput}
+          placeholder={`الانتقال إلى آية (1–${toArabicIndic(surah.ayahCount)})`}
+          placeholderTextColor={tokens.muted}
+          keyboardType="number-pad"
+          maxLength={3}
+          style={{
+            flex: 1,
+            minHeight: touchTarget,
+            color: tokens.text,
+            backgroundColor: tokens.surface,
+            borderWidth: 1,
+            borderColor: tokens.border,
+            borderRadius: radius.full,
+            paddingHorizontal: spacing.md,
+            fontSize: fontSizes.sm * fontScale,
+            fontFamily: fontFamilies.ui,
+          }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={jumpToAyah}
+          style={({ pressed }) => ({
+            minHeight: touchTarget,
+            paddingHorizontal: spacing.md,
+            backgroundColor: tokens.primary,
+            borderRadius: radius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ color: '#fff', fontSize: fontSizes.sm * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+            انتقال
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* الآيات */}
+      <FlatList
+        ref={listRef}
+        data={ayahs}
+        keyExtractor={(a) => a.id}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: 160 }}
+        onScrollToIndexFailed={() => {}}
+        renderItem={({ item }) => (
+          <AyahItem
+            ayah={item}
+            active={item.ayah === activeAyah}
+            selected={item.ayah === selectedAyah}
+            fontScale={fontScale}
+            quranColor={quranInk}
+            metaColor={metaInk}
+            onPress={() => selectAyah(item.ayah)}
+          />
+        )}
+      />
+
+      {/* شريط أدوات الآية */}
+      {selected ? (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            left: 0,
+            backgroundColor: tokens.surface,
+            borderTopWidth: 1,
+            borderTopColor: tokens.border,
+            padding: spacing.md,
+            gap: spacing.sm,
+          }}
+        >
+          <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+            {surah.nameArabic} — آية {toArabicIndic(selected.ayah)}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+            <ToolBtn
+              label={isBookmarked ? 'إزالة العلامة' : 'علامة'}
+              active={isBookmarked}
+              onPress={() => void toggleBookmark(selected)}
+            />
+            <ToolBtn
+              label={isFavorited ? 'إزالة من المفضلة' : 'مفضلة'}
+              active={isFavorited}
+              onPress={() => void toggleFavorite(selected)}
+            />
+            <ToolBtn
+              label={note ? 'تعديل الملاحظة' : 'ملاحظة'}
+              active={!!note}
+              onPress={() =>
+                setNoteModal({
+                  title: note?.title ?? '',
+                  body: note?.body ?? '',
+                })
+              }
+            />
+            <ToolBtn label="التفسير" active={false} onPress={() => setTafsirSource('ibnkathir')} />
+            <ToolBtn label={copied ? 'نُسخ ✓' : 'نسخ'} active={copied} onPress={() => void doCopy(selected)} />
+            <ToolBtn label={shared ? 'نُسخ للحافظة ✓' : 'مشاركة'} active={shared} onPress={() => void doShare(selected)} />
+          </View>
+          {note ? (
+            <Pressable accessibilityRole="button" onPress={() => void deleteNote()} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+              <Text style={{ color: tokens.error, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                حذف الملاحظة
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* مودال الملاحظة */}
+      <Modal visible={noteModal !== null} transparent animationType="slide" onRequestClose={() => setNoteModal(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: tokens.surface, borderRadius: radius.card * 1.5, padding: spacing.lg, gap: spacing.md }}>
+            <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+              ملاحظة على آية {selected ? toArabicIndic(selected.ayah) : ''}
+            </Text>
+            <TextInput
+              value={noteModal?.title ?? ''}
+              onChangeText={(t) => setNoteModal((m) => (m ? { ...m, title: t } : m))}
+              placeholder="عنوان (اختياري)"
+              placeholderTextColor={tokens.muted}
+              style={{
+                color: tokens.text,
+                minHeight: touchTarget,
+                borderWidth: 1,
+                borderColor: tokens.border,
+                borderRadius: radius.sm,
+                paddingHorizontal: spacing.md,
+                fontSize: fontSizes.md * fontScale,
+                fontFamily: fontFamilies.ui,
+              }}
+            />
+            <TextInput
+              value={noteModal?.body ?? ''}
+              onChangeText={(t) => setNoteModal((m) => (m ? { ...m, body: t } : m))}
+              placeholder="نص الملاحظة…"
+              placeholderTextColor={tokens.muted}
+              multiline
+              style={{
+                color: tokens.text,
+                minHeight: 120,
+                borderWidth: 1,
+                borderColor: tokens.border,
+                borderRadius: radius.sm,
+                padding: spacing.md,
+                fontSize: fontSizes.md * fontScale,
+                fontFamily: fontFamilies.ui,
+                textAlignVertical: 'top',
+              }}
+            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="حفظ الملاحظة"
+                onPress={() => {
+                  if (selected) void saveNote(selected);
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: touchTarget,
+                  backgroundColor: tokens.primary,
+                  borderRadius: radius.full,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: fontSizes.md * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                  حفظ
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="إلغاء الملاحظة"
+                onPress={() => setNoteModal(null)}
+                style={{
+                  flex: 1,
+                  minHeight: touchTarget,
+                  borderWidth: 1,
+                  borderColor: tokens.border,
+                  borderRadius: radius.full,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: tokens.text, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui }}>
+                  إلغاء
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* مودال التفسير (مرحلة 4) — مصادر معتمدة: ابن كثير + البغوي */}
+      <Modal visible={tafsirSource !== null} animationType="slide" onRequestClose={() => setTafsirSource(null)}>
+        <View style={{ flex: 1, backgroundColor: tokens.background, paddingTop: 8 }}>
+          <View style={{ paddingHorizontal: spacing.md, gap: spacing.xs, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: tokens.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={{ color: tokens.text, fontSize: fontSizes.lg * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold, flex: 1 }}>
+                التفسير
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق التفسير"
+                onPress={() => setTafsirSource(null)}
+                style={{ width: touchTarget, height: touchTarget, borderRadius: radius.full, borderWidth: 1, borderColor: tokens.border, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: tokens.muted, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui }}>✕</Text>
+              </Pressable>
+            </View>
+            {selected ? (
+              <Text style={{ color: tokens.text, fontSize: fontSizes.quran * fontScale, fontFamily: fontFamilies.quran, lineHeight: fontSizes.quran * fontScale + 10 }}>
+                {selected.text}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs }}>
+              {tafsirSources.map((src) => {
+                const activeChip = src.id === tafsirSource;
+                return (
+                  <Pressable
+                    key={src.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`عرض ${src.name}`}
+                    onPress={() => setTafsirSource(src.id)}
+                    style={{
+                      paddingHorizontal: spacing.md,
+                      minHeight: 36,
+                      borderRadius: radius.full,
+                      borderWidth: 1,
+                      borderColor: activeChip ? tokens.primary : tokens.border,
+                      backgroundColor: activeChip ? tokens.primary : 'transparent',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: activeChip ? '#fff' : tokens.primary, fontSize: fontSizes.xs * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+                      {src.name.replace('تفسير ', '')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <ScrollView
+            contentContainerStyle={{ padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl }}
+            style={{ flex: 1 }}
+          >
+            {selected && tafsirSource
+              ? (() => {
+                  const text = getTafsir(surahNumber, selected.ayah, tafsirSource);
+                  if (!text) {
+                    return (
+                      <View style={{ alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm }}>
+                        <Text style={{ color: tokens.muted, fontSize: fontSizes.md * fontScale, fontFamily: fontFamilies.ui, textAlign: 'center' }}>
+                          لا يتوفر تفسير لهذه الآية في هذا المصدر
+                        </Text>
+                        <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui, textAlign: 'center' }}>
+                          (نواقص المصدر موثقة في سجل الاعتماد — جرّب مصدرًا آخر: البغوي مكتمل 6236 آية)
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return text
+                    .split('\n')
+                    .filter((p) => p.trim().length > 0)
+                    .map((p, i) => (
+                      <Text
+                        key={i}
+                        style={{ color: tokens.text, fontSize: fontSizes.md * fontScale, lineHeight: fontSizes.md * fontScale + 12, fontFamily: fontFamilies.ui }}
+                      >
+                        {p}
+                      </Text>
+                    ));
+                })()
+              : null}
+          </ScrollView>
+          {tafsirSource ? (
+            <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: 2 }}>
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                المصدر: {tafsirSources.find((x) => x.id === tafsirSource)?.name} — {tafsirSources.find((x) => x.id === tafsirSource)?.author}
+              </Text>
+              <Text style={{ color: tokens.muted, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+                نص في الملك العام · مُوزَّع عبر {tafsirSources.find((x) => x.id === tafsirSource)?.distribution} · اعتمد بوابات 05 (بصمة/فحص)
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function NavBtn({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => ({
+        paddingHorizontal: spacing.sm + 4,
+        minHeight: 36,
+        borderWidth: 1,
+        borderColor: tokens.border,
+        borderRadius: radius.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: disabled ? 0.35 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Text style={{ color: tokens.primary, fontSize: fontSizes.xs * fontScale, fontWeight: '700', fontFamily: fontFamilies.uiBold }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ToolBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const { tokens, fontScale } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        minHeight: touchTarget,
+        borderWidth: 1,
+        borderColor: active ? tokens.primary : tokens.border,
+        backgroundColor: active ? tokens.primary : 'transparent',
+        borderRadius: radius.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          color: active ? '#fff' : tokens.primary,
+          fontSize: fontSizes.xs * fontScale,
+          fontWeight: '700',
+          fontFamily: fontFamilies.uiBold,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function AyahItem({
+  ayah,
+  active,
+  selected,
+  fontScale,
+  quranColor,
+  metaColor,
+  onPress,
+}: {
+  ayah: AyahInfo;
+  active: boolean;
+  selected: boolean;
+  fontScale: number;
+  /** لون نص المصحف حسب لوحة صفحة القراءة المختارة */
+  quranColor: string;
+  metaColor: string;
+  onPress: () => void;
+}) {
+  const { tokens } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        padding: spacing.sm,
+        borderRadius: radius.card,
+        backgroundColor: selected ? tokens.surface : 'transparent',
+        borderWidth: selected ? 1 : 0,
+        borderColor: tokens.accent,
+        opacity: pressed && !selected ? 0.85 : 1,
+      })}
+      accessibilityRole="button"
+      accessibilityLabel={`آية ${ayah.ayah} ${active ? '— الموضع الحالي' : ''}`}
+    >
+      <Text
+        style={{
+          color: quranColor,
+          fontSize: fontSizes.quran * fontScale,
+          fontFamily: fontFamilies.quran,
+          lineHeight: fontSizes.quran * fontScale + 14,
+        }}
+      >
+        {ayah.text}
+        <Text
+          style={{
+            color: tokens.accent,
+            fontSize: fontSizes.quran * fontScale * 0.8,
+            fontFamily: fontFamilies.quran,
+          }}
+        >
+          {'  '}
+          ﴿{toArabicIndic(ayah.ayah)}﴾
+        </Text>
+        {ayah.sajdah ? (
+          <Text style={{ color: metaColor, fontSize: fontSizes.xs * fontScale, fontFamily: fontFamilies.ui }}>
+            {'  '}
+            [سجدة]
+          </Text>
+        ) : null}
+      </Text>
+    </Pressable>
+  );
+}
+```
+
+### 8.7) tests (حزم الاختبارات — 155 فحصًا)
+
+#### `tests/realm-stage0.test.ts`  ·  8.1KB
+
+```ts
+/**
+ * اختبار المرحلة 0 — إثبات أن Realm يفتح محليًا ويكتب ويقرأ ويستعيد.
+ * يُشغَّل على Node (نفس حزمة realm 20.2.0 المستخدمة على React Native).
+ *
+ * بيانات الاختبار معزولة في ملف .test-data/ خاص ولا تدخل قاعدة التطبيق.
+ * المرجع: بوابة قبول المرحلة 0 (06-IMPLEMENTATION-PLAN.md) + قائمة B (07-ACCEPTANCE-TESTS.md)
+ *
+ * ملاحظة تشغيلية: addon الخاص بـ Realm يُبقي عملية Node حية بعد close()،
+ * لذلك يُنهى الاختبار بـ process.exit() صريحًا في نهاية كل مسار.
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { Realm } from 'realm';
+import { userSchemas, USER_SCHEMA_VERSION } from '../src/database/realm/schemas';
+import {
+  APP_SETTINGS_ID,
+  DEFAULT_SETTINGS,
+} from '../src/database/realm/types';
+
+const TEST_DIR = path.join(__dirname, '..', '.test-data');
+const TEST_DB = path.join(TEST_DIR, 'stage0-test.realm');
+
+let passed = 0;
+let failed = 0;
+
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+function newId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** جلب سجل واحد بمفتاحه الأساسي — النمط المعتمد في realm 20 (لا توجد object()) */
+function byId<T = any>(realm: Realm, type: string, id: string): T | null {
+  return realm.objects(type).filtered('id = $0', id)[0] as unknown as T | null;
+}
+
+async function main(): Promise<void> {
+  // تجهيز بيئة اختبار نظيفة
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+
+  console.log('\n[1] فتح قاعدة بيانات جديدة (أول تشغيل)');
+  const wasFirstLaunch = !Realm.exists(TEST_DB);
+  const realm: Realm = await Realm.open({
+    path: TEST_DB,
+    schema: userSchemas,
+    schemaVersion: USER_SCHEMA_VERSION,
+  });
+  check('فُتح ملف Realm محليًا بنجاح', !realm.isClosed);
+  check('إصدار المخطط = ' + USER_SCHEMA_VERSION, realm.schemaVersion === USER_SCHEMA_VERSION);
+  check(
+    'تُعرف كل المخططات العشرة',
+    userSchemas.every((s) => realm.schema.some((x) => x.name === s.name)),
+  );
+  check('رُصد أول تشغيل بشكل صحيح', wasFirstLaunch);
+
+  console.log('\n[2] الإعدادات: إنشاء ثم قراءة ثم تحديث داخل معاملة');
+  realm.write(() => {
+    realm.create('AppSettings', { ...DEFAULT_SETTINGS, id: APP_SETTINGS_ID });
+  });
+  let settings = byId(realm, 'AppSettings', APP_SETTINGS_ID);
+  check('وُجد سجل الإعدادات', !!settings);
+  check('القيمة الافتراضية theme = light', settings?.theme === 'light');
+  realm.write(() => {
+    const s = byId(realm, 'AppSettings', APP_SETTINGS_ID);
+    if (s) {
+      s.fontScale = 1.25;
+      s.updatedAt = new Date();
+    }
+  });
+  settings = byId(realm, 'AppSettings', APP_SETTINGS_ID);
+  check('تحديث fontScale حُفظ داخل معاملة', settings?.fontScale === 1.25);
+
+  console.log('\n[3] العلامات المرجعية: إنشاء وقراءة وحذف');
+  const bm1 = newId('bm');
+  const bm2 = newId('bm');
+  const now = new Date();
+  realm.write(() => {
+    realm.create('Bookmark', { id: bm1, surahNumber: 1, ayahNumber: 5, label: 'تست', createdAt: now, updatedAt: now });
+    realm.create('Bookmark', { id: bm2, surahNumber: 18, ayahNumber: 1, label: null, createdAt: now, updatedAt: now });
+  });
+  check('عدد العلامات = 2', realm.objects('Bookmark').length === 2);
+  realm.write(() => {
+    const target = realm.objects('Bookmark').filtered('id = $0', bm2);
+    realm.delete(target);
+  });
+  check('حذف علامة أبقى على 1', realm.objects('Bookmark').length === 1);
+  const remaining = realm.objects('Bookmark')[0];
+  check(
+    'العلامة المتبقية صحيحة (سورة 1 آية 5)',
+    remaining?.surahNumber === 1 && remaining?.ayahNumber === 5,
+  );
+
+  console.log('\n[4] المفضلة: إنشاء');
+  const favId = newId('fav');
+  realm.write(() => {
+    realm.create('FavoriteAyah', { id: favId, surahNumber: 94, ayahNumber: 6, createdAt: now });
+  });
+  check('وُجدت آية مفضلة', realm.objects('FavoriteAyah').length === 1);
+
+  console.log('\n[5] الملاحظة الشخصية: إنشاء بتُغ ثم تحديث');
+  const noteId = newId('note');
+  realm.write(() => {
+    realm.create('PersonalNote', {
+      id: noteId,
+      surahNumber: 1,
+      ayahNumber: 1,
+      title: 'ملاحظة اختبار',
+      body: 'نص تجريبي معزول — لن يظهر في التطبيق.',
+      tags: ['اختبار', 'stage0'],
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  let note = byId(realm, 'PersonalNote', noteId);
+  check('وُجدت الملاحظة', !!note);
+  check('حُفظت التُغ', note?.tags.length === 2 && note?.tags.includes('stage0'));
+  realm.write(() => {
+    const n = byId(realm, 'PersonalNote', noteId);
+    if (n) n.body = 'نص محدث داخل معاملة.';
+  });
+  note = byId(realm, 'PersonalNote', noteId);
+  check('تحديث نص الملاحظة حُفظ', note?.body === 'نص محدث داخل معاملة.');
+
+  console.log('\n[6] معاملة مركبة: جلسة قراءة + تقدم يومي + تقدم ذكر');
+  const session = newId('sess');
+  const dhikr = newId('dhr');
+  realm.write(() => {
+    realm.create('ReadingSession', {
+      id: session,
+      startedAt: now,
+      endedAt: now,
+      startSurahNumber: 1,
+      startAyahNumber: 1,
+      endSurahNumber: 1,
+      endAyahNumber: 20,
+      pagesRead: 2,
+      ayahsRead: 20,
+      durationSeconds: 300,
+      source: 'manual',
+      createdAt: now,
+    });
+    realm.create('DailyProgress', {
+      id: '2026-10-12',
+      date: now,
+      ayahsRead: 20,
+      pagesRead: 2,
+      audioMinutes: 0,
+      adhkarCompleted: 1,
+      wordsLearned: 0,
+      updatedAt: now,
+    });
+    realm.create('DhikrProgress', {
+      id: dhikr,
+      contentId: 'dhikr-test-1',
+      dateKey: '2026-10-12',
+      countCompleted: 3,
+      targetCount: 10,
+      updatedAt: now,
+    });
+  });
+  check('حُفظت الجلسة', realm.objects('ReadingSession').length === 1);
+  check('حُفظ التقدم اليومي', realm.objects('DailyProgress').length === 1);
+  check('حُفظ تقدم الذكر', realm.objects('DhikrProgress').length === 1);
+
+  console.log('\n[7] المعرفات الفريدة تمنع التكرار غير المقصود');
+  let dupBlocked = false;
+  try {
+    realm.write(() => {
+      realm.create('FavoriteAyah', { id: favId, surahNumber: 2, ayahNumber: 2, createdAt: now });
+    });
+  } catch {
+    dupBlocked = true;
+  }
+  check('معرّف مكرر رُفض', dupBlocked);
+  check('لم يزد عدد المفضلة بعد الرفض', realm.objects('FavoriteAyah').length === 1);
+
+  console.log('\n[8] إغلاق ثم إعادة فتح — استعادة البيانات بعد "إغلاق التطبيق"');
+  realm.close();
+  const realm2: Realm = await Realm.open({
+    path: TEST_DB,
+    schema: userSchemas,
+    schemaVersion: USER_SCHEMA_VERSION,
+  });
+  check(
+    'استُعيدت الإعدادات (fontScale 1.25)',
+    byId(realm2, 'AppSettings', APP_SETTINGS_ID)?.fontScale === 1.25,
+  );
+  check('استُعيدت العلامة المرجعية', realm2.objects('Bookmark').length === 1);
+  check('استُعيدت المفضلة', realm2.objects('FavoriteAyah').length === 1);
+  check('استُعيدت الملاحظة', !!byId(realm2, 'PersonalNote', noteId));
+  check('استُعيدت الجلسة المركبة', realm2.objects('ReadingSession').length === 1);
+  realm2.close();
+
+  console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+  // addon realm يُبقي العملية حية — إنهاء صريح بالكود المناسب
+  process.exit(failed === 0 ? 0 : 1);
+}
+
+main().catch((e) => {
+  console.error('فشل غير متوقع في الاختبار:', e);
+  process.exit(1);
+});
+```
+
+#### `tests/repositories-stage1.test.ts`  ·  5.5KB
+
+```ts
+/**
+ * اختبار المرحلة 1 — طبقة المستودعات على قاعدة بيانات Realm حقيقية.
+ * يغطي: الإعدادات (إنشاء افتراضي/تحديث/استعادة) + العلامات + المفضلة + الملاحظات
+ * (إضافة، رفض المكرر، تحقق الحدود، حذف).
+ * بيانات الاختبار معزولة في .test-data/ ولا تدخل قاعدة التطبيق.
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { openAppRealm, closeAppRealm } from '../src/database/realm/realm';
+import { getSettingsRepository } from '../src/repositories/settings-repository';
+import { getBookmarkRepository } from '../src/repositories/bookmark-repository';
+import { getFavoriteAyahRepository } from '../src/repositories/favorite-ayah-repository';
+import { getPersonalNoteRepository } from '../src/repositories/personal-note-repository';
+
+const TEST_DIR = path.join(__dirname, '..', '.test-data');
+const TEST_DB = path.join(TEST_DIR, 'stage1-repos.realm');
+
+let passed = 0;
+let failed = 0;
+
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+async function expectReject(promise: Promise<unknown>, name: string): Promise<void> {
+  let rejected = false;
+  try {
+    await promise;
+  } catch {
+    rejected = true;
+  }
+  check(name, rejected);
+}
+
+async function main(): Promise<void> {
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+
+  await openAppRealm(TEST_DB);
+
+  console.log('\n[1] الإعدادات: إنشاء افتراضي ثم تحديث ثم استعادة');
+  const settingsRepo = getSettingsRepository();
+  const s1 = await settingsRepo.getSettings();
+  check('أُنشئ سجل الإعدادات', s1.id === 'app-settings');
+  check('الافتراضي: theme=light', s1.theme === 'light');
+  check('الافتراضي: fontScale=1', s1.fontScale === 1);
+  check('الافتراضي: الورد 20 آية', s1.dailyGoalValue === 20 && s1.dailyGoalUnit === 'ayahs');
+
+  const s2 = await settingsRepo.updateSettings({ theme: 'dark', fontScale: 1.2 });
+  check('تحديث المظهر إلى dark', s2.theme === 'dark');
+  check('تحديث حجم الخط إلى 1.2', s2.fontScale === 1.2);
+
+  const s3 = await settingsRepo.updateSettings({ lastSurahNumber: 18, lastAyahNumber: 110, lastReadAt: new Date() });
+  check('حفظ آخر موضع قراءة (18:110)', s3.lastSurahNumber === 18 && s3.lastAyahNumber === 110);
+
+  // استعادة بعد إغلاق وفتح (محاكاة إعادة تشغيل التطبيق)
+  closeAppRealm();
+  await openAppRealm(TEST_DB);
+  const s4 = await settingsRepo.getSettings();
+  check('استُعيد المظهر dark بعد الإغلاق', s4.theme === 'dark');
+  check('استُعيد آخر موضع بعد الإغلاق', s4.lastSurahNumber === 18 && s4.lastAyahNumber === 110);
+
+  console.log('\n[2] العلامات المرجعية');
+  const bookmarkRepo = getBookmarkRepository();
+  const bm = await bookmarkRepo.add({ surahNumber: 2, ayahNumber: 255, label: 'آية الكرسي' });
+  check('أُضيفت علامة', bm.surahNumber === 2 && bm.ayahNumber === 255 && bm.label === 'آية الكرسي');
+  await expectReject(bookmarkRepo.add({ surahNumber: 2, ayahNumber: 255 }), 'رُفض موضع مكرر');
+  await expectReject(bookmarkRepo.add({ surahNumber: 115, ayahNumber: 1 }), 'رُفض رقم سورة خارج النطاق');
+  await expectReject(bookmarkRepo.add({ surahNumber: 1, ayahNumber: 287 }), 'رُفض رقم آية خارج النطاق');
+  const bms = await bookmarkRepo.list();
+  check('القائمة تحتوي علامة واحدة', bms.length === 1);
+  await bookmarkRepo.remove(bm.id);
+  check('حُذفت العلامة', (await bookmarkRepo.list()).length === 0);
+
+  console.log('\n[3] المفضلة');
+  const favRepo = getFavoriteAyahRepository();
+  await favRepo.add({ surahNumber: 94, ayahNumber: 6 });
+  check('أُضيفت آية مفضلة (94:6)', (await favRepo.list()).length === 1);
+  await expectReject(favRepo.add({ surahNumber: 94, ayahNumber: 6 }), 'رُفضت آية مكررة');
+  await expectReject(favRepo.add({ surahNumber: 0, ayahNumber: 1 }), 'رُفضت سورة صفر');
+
+  console.log('\n[4] الملاحظات');
+  const noteRepo = getPersonalNoteRepository();
+  const note = await noteRepo.add({
+    surahNumber: 18,
+    ayahNumber: 110,
+    title: 'دعاء الخروج',
+    body: 'ملاحظة اختبار معزولة.',
+    tags: ['اختبار'],
+  });
+  check('أُنشئت الملاحظة', note.title === 'دعاء الخروج' && note.tags.length === 1);
+  await expectReject(noteRepo.add({ surahNumber: 1, body: '   ' }), 'رُفضت ملاحظة فارغة');
+  await expectReject(noteRepo.add({ surahNumber: 5, ayahNumber: -1, body: 'نص' }), 'رُفضت آية سالبة');
+  const updated = await noteRepo.update(note.id, { body: 'نص محدث.' });
+  check('حُدّثت الملاحظة', updated.body === 'نص محدث.');
+  await expectReject(noteRepo.update('nonexistent', { body: 'x' }), 'رُفض تحديث ملاحظة غير موجودة');
+  check('القائمة تحتوي ملاحظة واحدة', (await noteRepo.list()).length === 1);
+
+  closeAppRealm();
+  console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+  process.exit(failed === 0 ? 0 : 1);
+}
+
+main().catch((e) => {
+  console.error('فشل غير متوقع:', e);
+  process.exit(1);
+});
+```
+
+#### `tests/quran-stage2.test.ts`  ·  11.4KB
+
+```ts
+/**
+ * اختبار المرحلة 2 — بيانات المصحف: الحزمة مقابل المصادر + البحث + Metadata + آخر موضع.
+ *
+ * الطبقات:
+ * [1] الحزمة مقابل المدخلات (إعادة تحليل مستقل للملفين — لا تعتمد على نتائج السكربت):
+ *     البصمات، البنية، الأعداد، المطابقة بايت-ببايت، السجدات، العلامات، المعرفات.
+ * [2] البحث (المستودع على Node — تطبيع + أسماء + ترحيل + حدود).
+ * [3] Metadata المحتوى + آخر موضع قراءة على Realm حقيقي (حفظ/استعادة بعد الإغلاق).
+ * [4] عيّنات بصرية (05-1): طباعة بداية/وسط/نهاية المصحف للمراجعة البشرية.
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { createHash } from 'crypto';
+import { openAppRealm, closeAppRealm, getOpenAppRealm } from '../src/database/realm/realm';
+import { getSettingsRepository } from '../src/repositories/settings-repository';
+import {
+  getQuranManifest,
+  getQuranSurahs,
+  getSurahInfo,
+  getAyahsOfSurah,
+  getAyah,
+  searchAyahs,
+  normalizeArabicForSearch,
+  ensureContentMetadata,
+} from '../src/repositories/quran-content-repository';
+
+// عند التشغيل من .test-build: __dirname = <root>/.test-build/tests
+const ROOT = path.join(__dirname, '..', '..');
+const TEST_DIR = path.join(ROOT, '.test-data');
+const TEST_DB = path.join(TEST_DIR, 'stage2-quran.realm');
+const TEXT_FILE = path.join(ROOT, 'content', 'quran-uthmani.txt');
+const META_FILE = path.join(ROOT, 'content', 'refs', 'quran-metadata-tanzil-v1.0.xml');
+const BUNDLE_FILE = path.join(ROOT, 'content', 'quran-data.json');
+
+let passed = 0;
+let failed = 0;
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+/** عدد آيات كل سورة 1..114 — رواية حفص عن عاصم (مجموع 6236) — جدول مستقل */
+const HAFS_COUNTS = [
+  7, 286, 200, 176, 120, 165, 206, 75, 129, 109,
+  123, 111, 43, 52, 99, 128, 111, 110, 98, 135,
+  112, 78, 118, 64, 77, 227, 93, 88, 69, 60,
+  34, 30, 73, 54, 45, 83, 182, 88, 75, 85,
+  54, 53, 89, 59, 37, 35, 38, 29, 18, 45,
+  60, 49, 62, 55, 78, 96, 29, 22, 24, 13,
+  14, 11, 11, 18, 12, 12, 30, 52, 52, 44,
+  28, 28, 20, 56, 40, 31, 50, 40, 46, 42,
+  29, 19, 36, 25, 22, 17, 19, 26, 30, 20,
+  15, 21, 11, 8, 8, 19, 5, 8, 8, 11,
+  11, 8, 3, 9, 5, 4, 7, 3, 6, 3,
+  5, 4, 5, 6,
+];
+
+function sha256File(f: string): string {
+  return createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+}
+
+function parseXmlTags(xml: string, tag: string): Record<string, string>[] {
+  const re = new RegExp(`<${tag}\\s+([^>/]*)/?>`, 'g');
+  const out: Record<string, string>[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml))) {
+    const attrs: Record<string, string> = {};
+    const are = /(\w+)="([^"]*)"/g;
+    let am: RegExpExecArray | null;
+    while ((am = are.exec(m[1]))) attrs[am[1]] = am[2];
+    out.push(attrs);
+  }
+  return out;
+}
+
+function main(): void {
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+
+  const manifest = getQuranManifest();
+  const surahs = getQuranSurahs();
+  const bundleJson = fs.readFileSync(BUNDLE_FILE, 'utf8');
+
+  // ---------- [1] الحزمة مقابل المصادر ----------
+  console.log('\n[1] الحزمة مقابل المدخلات (إعادة تحليل مستقل)');
+
+  check('بصمة الملف النصي == manifest.textChecksum', sha256File(TEXT_FILE) === manifest.textChecksum);
+  check('بصمة الوصفية == manifest.metadataChecksum', sha256File(META_FILE) === manifest.metadataChecksum);
+
+  check('114 سورة مرقمة 1..114 متتابعة', surahs.length === 114 && surahs.every((s, i) => s.number === i + 1));
+
+  // إعادة تحليل الوصفية بشكل مستقل
+  const metaXml = fs.readFileSync(META_FILE, 'utf8');
+  const metaSuras = parseXmlTags(metaXml, 'sura').map((a) => ({
+    number: Number(a.index),
+    ayas: Number(a.ayas),
+  }));
+  check('عدد سجلات sura في الوصفية 114', metaSuras.length === 114);
+  let countMismatch = 0;
+  for (const ms of metaSuras) {
+    const s = getSurahInfo(ms.number);
+    if (!s || s.ayahCount !== ms.ayas) countMismatch++;
+  }
+  check('عدد آيات كل سورة في الحزمة == الوصفية (114/114)', countMismatch === 0, `${114 - countMismatch}/114`);
+
+  let hafsMismatch = 0;
+  for (let i = 0; i < 114; i++) {
+    if (getSurahInfo(i + 1)?.ayahCount !== HAFS_COUNTS[i]) hafsMismatch++;
+  }
+  check('الأعداد == الجدول المستقل (حفص عن عاصم)', hafsMismatch === 0);
+
+  let total = 0;
+  for (let n = 1; n <= 114; n++) total += getSurahInfo(n)!.ayahCount;
+  check('مجموع الآيات 6236', total === 6236, String(total));
+
+  // اتساق startLine مع التراكم
+  let startLineBad = 0;
+  let cum = 0;
+  for (const s of surahs) {
+    if (s.startLine !== cum) startLineBad++;
+    cum += s.ayahCount;
+  }
+  check('حقول startLine متسقة مع التراكم', startLineBad === 0);
+
+  // المطابقة بايت-ببايت مع الملف النصي
+  const dataLines = fs
+    .readFileSync(TEXT_FILE, 'utf8')
+    .split('\n')
+    .filter((l) => l.trim() !== '' && !l.startsWith('#'));
+  check('عدد أسطر النص == عدد آيات الحزمة', dataLines.length === 6236, `${dataLines.length}`);
+  let roundTripBad = -1;
+  for (let i = 0; i < dataLines.length; i++) {
+    const parts = dataLines[i].split('|');
+    const s = Number(parts[0]);
+    const ay = Number(parts[1]);
+    const got = getAyah(s, ay);
+    if (!got || got.text !== parts[2]) {
+      roundTripBad = i;
+      break;
+    }
+  }
+  check('نص كل آية في الحزمة == نص الملف (بايت-ببايت)', roundTripBad === -1, roundTripBad >= 0 ? `فشل عند السطر ${roundTripBad}` : '6236/6236');
+
+  // السجدات: أعلام الحزمة == سجلات الوصفية
+  const metaSajdas = new Set(parseXmlTags(metaXml, 'sajda').map((a) => `${a.sura}:${a.aya}`));
+  let sajdaBad = 0;
+  const bundleSajdas = new Set<string>();
+  for (let n = 1; n <= 114; n++) {
+    for (const a of getAyahsOfSurah(n)) {
+      if (a.sajdah) bundleSajdas.add(`${a.surah}:${a.ayah}`);
+    }
+  }
+  for (const k of bundleSajdas) if (!metaSajdas.has(k)) sajdaBad++;
+  for (const k of metaSajdas) if (!bundleSajdas.has(k)) sajdaBad++;
+  check('مواضع السجدات: حزمة == وصفية (15)', sajdaBad === 0, `حزمة=${bundleSajdas.size} وصفية=${metaSajdas.size}`);
+
+  // العلامات والتشكيل محفوظة
+  const a11 = getAyah(1, 1)!;
+  check('1:1 تحمل التشكيل (لم يُطبَّع النص)', /[\u064B-\u065F]/.test(a11.text) && a11.search !== a11.text);
+  const allText = getAyahsOfSurah(2).map((x) => x.text).join(' ');
+  check('علامات ۖ و ۞ موجودة في الحزمة', allText.includes('\u06D6') && allText.includes('\u06DE'));
+  let dupIds = 0;
+  const seen = new Set<string>();
+  for (let n = 1; n <= 114; n++) {
+    for (const a of getAyahsOfSurah(n)) {
+      if (seen.has(a.id)) dupIds++;
+      seen.add(a.id);
+    }
+  }
+  check('لا معرفات آية مكررة', dupIds === 0);
+
+  // بصمة المحتوى: إعادة حساب بصمة {surahs, ayahs}
+  const parsed = JSON.parse(bundleJson) as { surahs: unknown; ayahs: unknown };
+  const recomputed = createHash('sha256').update(JSON.stringify({ surahs: parsed.surahs, ayahs: parsed.ayahs }), 'utf8').digest('hex');
+  check('manifest.contentChecksum == بصمة {surahs,ayahs} المعاد حسابها', recomputed === manifest.contentChecksum);
+
+  // ---------- [2] البحث ----------
+  console.log('\n[2] البحث (تطبيع + أسماء + ترحيل + حدود)');
+
+  const h1 = searchAyahs('الرحيم');
+  check('«الرحيم» يجد 1:1 (مع تشكيل النص الأصلي)', h1.some((h) => h.ayah.surah === 1 && h.ayah.ayah === 1));
+  check('النتيجة تحمل اسم السورة ورقم الآية الصحيحين', h1.some((h) => h.surah.nameArabic === 'الفاتحة' && h.ayah.ayah === 1));
+
+  const h2 = searchAyahs('بسم الله الرحمن');
+  check('«بسم الله الرحمن» (بدون تشكيل) يجد 1:1', h2.some((h) => h.ayah.id === '1:1'));
+
+  const h3 = searchAyahs('الفاتحة');
+  check('بحث باسم السورة «الفاتحة» يعيد آياتها', h3.length >= 7 && h3.every((h) => h.surah.number === 1));
+
+  const h4 = searchAyahs('Yaseen');
+  check('الترحيل اللاتيني «Yaseen» يجد سورة يس (36)', h4.some((h) => h.surah.number === 36));
+
+  check('استعلام فارغ → لا نتائج', searchAyahs('   ').length === 0);
+  const h5 = searchAyahs('لا', 10);
+  check('الحد الأقصى للنتائج محترم (limit=10)', h5.length === 10 && h5.length <= 10);
+
+  const h6 = searchAyahs('الناس', 7000); // 179 نتيجة — الحد الافتراضي 100 يُقطعه قبل السورة 114
+  // النص في المصدر: ٱلنَّاسِ (ألف وصل ٱ) — التطبيع يوحّدها إلى ا
+  check('«الناس» (ألف وصل ٱ في المصدر) يجد 114:1', h6.some((h) => h.ayah.id === '114:1'));
+  check('تطبيع الاستعلام يحذف التشكيل', normalizeArabicForSearch('ٱلْحَمْدُ') === 'الحمد');
+
+  // ---------- [3] Metadata + آخر موضع على Realm حقيقي ----------
+  console.log('\n[3] Metadata المحتوى + آخر موضع قراءة');
+
+  openAppRealm(TEST_DB).then(async () => {
+    ensureContentMetadata();
+    const realm = getOpenAppRealm();
+    const rows = realm.objects('ContentMetadata');
+    check('سُجل ContentMetadata للمحتوى', rows.length === 1);
+    const row = rows[0] as unknown as { id: string; validationStatus: string; checksum: string; contentType: string };
+    check('الحالة passed والمحتوى quran-data', row.validationStatus === 'passed' && row.contentType === 'quran-data');
+    check('البصمة المسجلة == بصمة الحزمة', row.checksum === manifest.contentChecksum);
+
+    // idempotent
+    ensureContentMetadata();
+    check('تسجيل Metadata مكرر لا يكرر السجل', realm.objects('ContentMetadata').length === 1);
+
+    // آخر موضع: حفظ → إغلاق → إعادة فتح → استعادة
+    const repo = getSettingsRepository();
+    await repo.updateSettings({ lastSurahNumber: 2, lastAyahNumber: 255, lastReadAt: new Date() });
+    closeAppRealm();
+    await openAppRealm(TEST_DB);
+    const restored = await repo.getSettings();
+    check('استُعيد آخر موضع (2:255) بعد إغلاق التطبيق', restored.lastSurahNumber === 2 && restored.lastAyahNumber === 255);
+    check('تاريخ آخر قراءة محفوظ', restored.lastReadAt instanceof Date);
+
+    // ---------- [4] عيّنات بصرية (05-1) ----------
+    console.log('\n[4] عيّنات للمراجعة البصرية (بداية/وسط/نهاية)');
+    console.log('  1:1   —', getAyah(1, 1)!.text);
+    console.log('  2:255 —', getAyah(2, 255)!.text.slice(0, 60) + '…');
+    console.log('  36:1  —', getAyah(36, 1)!.text.slice(0, 40) + '…');
+    console.log('  114:6 —', getAyah(114, 6)!.text);
+
+    console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+    closeAppRealm();
+    process.exit(failed > 0 ? 1 : 0);
+  });
+}
+
+main();
+```
+
+#### `tests/library-stage3.test.ts`  ·  7.9KB
+
+```ts
+/**
+ * اختبار المرحلة 3 — المكتبة الشخصية:
+ * [1] الجلسات: بدء/فريد/إنهاء + الورد اليومي + لا تكرار عند إعادة الفتح (بوابة 06-3).
+ * [2] الاستعادة بعد إعادة التشغيل (إغلاق/فتح Realm).
+ * [3] العلامات: تسمية (updateLabel) + استقرار القائمة.
+ * [4] المفضلة: ربط السجل بنص الحزمة الحقيقية (عرض الشاشة يعتمد getAyah).
+ * [5] الملاحظات: إضافة مرتبطة بآية + عدم تكرار «عند إعادة فتح الشاشة».
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { openAppRealm, closeAppRealm, getOpenAppRealm } from '../src/database/realm/realm';
+import { getReadingSessionRepository } from '../src/repositories/reading-session-repository';
+import { getReadingSessionTracker } from '../src/repositories/reading-session-tracker';
+import { getBookmarkRepository } from '../src/repositories/bookmark-repository';
+import { getFavoriteAyahRepository } from '../src/repositories/favorite-ayah-repository';
+import { getPersonalNoteRepository } from '../src/repositories/personal-note-repository';
+import { getAyah, getSurahInfo, normalizeArabicForSearch } from '../src/repositories/quran-content-repository';
+
+const ROOT = path.join(__dirname, '..', '..');
+const TEST_DIR = path.join(ROOT, '.test-data');
+const TEST_DB = path.join(TEST_DIR, 'stage3-library.realm');
+
+let passed = 0;
+let failed = 0;
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+function main(): void {
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+
+  openAppRealm(TEST_DB).then(async () => {
+    const repo = getReadingSessionRepository();
+    const tracker = getReadingSessionTracker();
+
+    // ---------- [1] دورة جلسة كاملة + الفريد + الورد ----------
+    console.log('\n[1] دورة الجلسة: بدء ← قراءة فريدة ← إنهاء ← الورد اليومي');
+    tracker.reset();
+    check('لا جلسة قبل أول اختيار (R1)', !tracker.isActive);
+
+    tracker.markRead(2, 1);
+    check('بدأت الجلسة عند أول اختيار متعمد', tracker.isActive);
+    tracker.markRead(2, 2);
+    tracker.markRead(2, 2); // تكرار داخل الجلسة — لا يُحتسب (R2)
+    tracker.markRead(3, 1);
+    const endedCount = tracker.end();
+    check('عدد آيات الجلسة = 3 (فريد: 2:1، 2:2، 3:1)', endedCount === 3, String(endedCount));
+    check('انتهت الجلسة (لا نشطة بعد الإنهاء)', !tracker.isActive);
+
+    const sessions = repo.listSessions();
+    check('سجل جلسة واحدة', sessions.length === 1, String(sessions.length));
+    const s1 = sessions[0];
+    check('بيانات الجلسة: بداية 2:1 ونهاية 3:1', s1.startSurahNumber === 2 && s1.startAyahNumber === 1 && s1.endSurahNumber === 3 && s1.endAyahNumber === 1);
+    check('آيات الجلسة 3', s1.ayahsRead === 3, String(s1.ayahsRead));
+    check('الجلسة منتهية بمدة ≥ 0', s1.endedAt instanceof Date && s1.durationSeconds >= 0);
+
+    const today = repo.getTodayProgress();
+    check('الورد اليومي = 3 (R5)', today?.ayahsRead === 3, String(today?.ayahsRead));
+
+    // جلسة ثانية في نفس اليوم
+    tracker.markRead(1, 1);
+    tracker.markRead(1, 2);
+    tracker.end();
+    check('الجلسة الثانية: سجل واحد جديد (إجمالي 2)', repo.listSessions().length === 2);
+    check('الورد تراكمي = 5', repo.getTodayProgress()?.ayahsRead === 5, String(repo.getTodayProgress()?.ayahsRead));
+
+    // ---------- [2] الاستعادة بعد إعادة التشغيل + لا تكرار ----------
+    console.log('\n[2] إعادة التشغيل: استعادة + لا تكرار سجلات (بوابة 06-3)');
+    closeAppRealm();
+    tracker.reset();
+    await openAppRealm(TEST_DB);
+    check('استُعيدت الجلسات (2) بعد إعادة الفتح', repo.listSessions().length === 2);
+    check('استُعيد الورد اليومي (5)', repo.getTodayProgress()?.ayahsRead === 5);
+
+    // محاكاة جلسة مفتوحة من سقوط سابق: إنشاء ثم «إقلاع» يُنهيها مرة واحدة
+    const crashed = repo.createSession(18, 110);
+    repo.updateSessionLive(crashed.id, 18, 112, 3);
+    const closedCount = repo.closeOpenSessions();
+    check('أُنهيت الجلسة المفتوحة عند الإقلاع', closedCount === 1, String(closedCount));
+    check('إجمالي الجلسات 3 (لا سجل مكرر)', repo.listSessions().length === 3, String(repo.listSessions().length));
+    check('إعادة closeOpenSessions لا تكرر (0)', repo.closeOpenSessions() === 0);
+    check('الورد بعد جلسة السقوط = 8', repo.getTodayProgress()?.ayahsRead === 8, String(repo.getTodayProgress()?.ayahsRead));
+
+    // ---------- [3] العلامات: تسمية ----------
+    console.log('\n[3] العلامات المرجعية: تسمية + استقرار');
+    const bmRepo = getBookmarkRepository();
+    const bm = await bmRepo.add({ surahNumber: 2, ayahNumber: 255 });
+    check('أُضيفت علامة بلا تسمية', bm.label === null);
+    const updated = await bmRepo.updateLabel(bm.id, 'آية الكرسي');
+    check('حُفظت التسمية', updated.label === 'آية الكرسي');
+    const blank = await bmRepo.updateLabel(bm.id, '   ');
+    check('تسمية فارغة → null (لا نص زائد)', blank.label === null);
+    const list1 = await bmRepo.list();
+    const list2 = await bmRepo.list(); // «إعادة فتح الشاشة»
+    check('القائمة مستقرة بين الفتحين (لا تكرار)', list1.length === list2.length && list1.length === 1);
+
+    // ---------- [4] المفضلة: الربط بنص الحزمة ----------
+    console.log('\n[4] المفضلة: السجل يرتبط بنص الحزمة الحقيقي');
+    const favRepo = getFavoriteAyahRepository();
+    await favRepo.add({ surahNumber: 2, ayahNumber: 255 });
+    const favs = await favRepo.list();
+    check('سجل مفضل واحد', favs.length === 1);
+    const ayahText = getAyah(favs[0].surahNumber, favs[0].ayahNumber)?.text ?? '';
+    const surahName = getSurahInfo(favs[0].surahNumber)?.nameArabic ?? '';
+    // مقارنة عبر التطبيع (لا نكتب محارف عربية في الاختبار — 05-1)
+    const normText = normalizeArabicForSearch(ayahText);
+    check('النص مسترجع من الحزمة (2:255)', ayahText.length > 20 && normText.includes('الله لا اله الا هو'), normText.slice(0, 30));
+    check('اسم السورة مسترجع (البقرة)', surahName === 'البقرة', surahName);
+
+    // ---------- [5] الملاحظات: ارتباط + استقرار ----------
+    console.log('\n[5] الملاحظات: ارتباط بآية + لا تكرار');
+    const noteRepo = getPersonalNoteRepository();
+    await noteRepo.add({ surahNumber: 2, ayahNumber: 255, title: 'تأمل', body: 'التفتير في صفات الله' });
+    await noteRepo.add({ surahNumber: 36, title: 'سورة', body: 'عنوان السورة' });
+    const n1 = await noteRepo.list();
+    const n2 = await noteRepo.list(); // إعادة «فتح الشاشة»
+    check('الملاحظات مستقرة بين الفتحين', n1.length === n2.length && n1.length === 2);
+    const linked = n1.find((n) => n.ayahNumber === 255);
+    check('الملاحظة المرتبطة بآية صالحة في الحزمة', !!linked && !!getAyah(linked.surahNumber, linked.ayahNumber!));
+
+    console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+    closeAppRealm();
+    process.exit(failed > 0 ? 1 : 0);
+  });
+}
+
+main();
+```
+
+#### `tests/tafsir-stage4.test.ts`  ·  13.5KB
+
+```ts
+/**
+ * اختبار المرحلة 4 — التفسير + تأكيد الرسم العثماني + ألوان صفحة المصحف:
+ * [1] إعادة التحقق من بوابة الاعتماد على الملفات الخام الملتقطة (بصمات/أعداد/نواقص).
+ * [2] سلامة الحزمة: 6236 مفتاح × مصدرين + تطابق التطبيع مع الخام (عينات) + لا فراغ.
+ * [3] المستودع: البحث + سلوك النواقص الموثقة + معرفات مرفوضة.
+ * [4] بوابة العرض العثماني: النص المعروض == الحزمة بايت-ببايت (عينات) + حرف ٱ
+ *     موجود في العرض + التطبيع للبحث فقط (النص المعروض ≠ المطبع).
+ * [5] كلمات الآية (تقسيم النص المعتمد — أساس «معاني الكلمات»).
+ * [6] لوحات صفحة المصحف المريحة.
+ * [7] ترحيل المخطط 1→2 (إضافة mushafBg = 'theme' للسجلات القديمة).
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { openAppRealm, closeAppRealm, getOpenAppRealm } from '../src/database/realm/realm';
+import { getRealmCtor } from '../src/database/realm/realm-ctor';
+import {
+  validateTafsirBundle,
+  getTafsirSources,
+  getTafsir,
+  getTafsirGaps,
+  getAyahWords,
+} from '../src/repositories/quran-qa-repository';
+import {
+  getAyah,
+  getQuranSurahs,
+  normalizeArabicForSearch,
+} from '../src/repositories/quran-content-repository';
+import { mushafPalettes, mushafBgLabels, type MushafBgChoice } from '../src/design-system/tokens';
+
+const ROOT = path.join(__dirname, '..', '..');
+const CONTENT = path.join(ROOT, 'content');
+const REFS = path.join(CONTENT, 'refs', 'tafsir');
+const BUNDLE = path.join(CONTENT, 'tafsir-data.json');
+const MANIFEST = path.join(REFS, 'manifest.sha256');
+const QURAN_BUNDLE = path.join(CONTENT, 'quran-data.json');
+
+let passed = 0;
+let failed = 0;
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+const stripAllWs = (s: string) =>
+  [...s.replace(/\s+/g, '')].join('');
+
+function htmlToPlain(html: string): string {
+  let t = String(html ?? '');
+  t = t.replace(/\r\n?/g, '\n');
+  t = t.replace(/<\/p\s*>/gi, '\n');
+  t = t.replace(/<br\s*\/?>/gi, '\n');
+  t = t.replace(/<[^>]+>/g, '');
+  t = t
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  t = t.replace(/^\uFEFF/, '');
+  return t
+    .split('\n')
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length > 0)
+    .join('\n');
+}
+
+/** المخطط القديم (الإصدار 1) — لإنشاء قاعدة بيانات «قبل الترحيل» */
+const OLD_APP_SETTINGS_SCHEMA = [
+  {
+    name: 'AppSettings',
+    primaryKey: 'id',
+    properties: {
+      id: 'string',
+      theme: 'string',
+      fontScale: 'double',
+      readingMode: 'string',
+      lastSurahNumber: 'int',
+      lastAyahNumber: 'int',
+      lastReadAt: 'date?',
+      dailyGoalUnit: 'string',
+      dailyGoalValue: 'int',
+      notificationsEnabled: 'bool',
+      morningReminderTime: 'string?',
+      eveningReminderTime: 'string?',
+      updatedAt: 'date',
+    },
+  },
+];
+
+function main(): void {
+  /* ---------- [1] البوابة على الخام ---------- */
+  const quran = JSON.parse(fs.readFileSync(QURAN_BUNDLE, 'utf8')) as {
+    surahs: { number: number; nameArabic: string; ayahCount: number }[];
+  };
+  const expectedCounts = quran.surahs.map((s) => s.ayahCount);
+
+  check('[1] قائمة البصمات موجودة', fs.existsSync(MANIFEST));
+  const manifestLines = fs.readFileSync(MANIFEST, 'utf8').trim().split('\n');
+  check('[1] 228 بصمة (114 × مصدرين)', manifestLines.length === 228, `${manifestLines.length}`);
+
+  let manifestOk = true;
+  for (const line of manifestLines) {
+    const [hash, file] = line.split(/\s+/);
+    const buf = fs.readFileSync(path.join(REFS, file));
+    if (crypto.createHash('sha256').update(buf).digest('hex') !== hash) {
+      manifestOk = false;
+      break;
+    }
+  }
+  check('[1] إعادة حساب بصمات الخام == القائمة', manifestOk);
+
+  const SOURCES = [
+    { id: 'ibnkathir', resource_id: 14, gapList: ['5:97', '6:56', '11:47', '20:68', '20:79', '23:37', '26:104', '26:159', '26:164', '26:174', '26:175', '26:178', '26:179', '26:180', '30:16', '33:47', '37:137', '38:70', '42:31', '43:27', '47:28', '53:15', '54:35', '74:15', '74:32', '74:46', '75:28', '77:14', '77:18', '77:23', '86:16'] },
+    { id: 'baghawi', resource_id: 94, gapList: [] },
+  ];
+
+  const rawCache: Record<string, Record<string, string>> = {};
+  for (const src of SOURCES) {
+    let total = 0;
+    let perSurahOk = true;
+    let resourceIdOk = true;
+    for (let n = 1; n <= 114; n++) {
+      const raw = JSON.parse(fs.readFileSync(path.join(REFS, src.id, `chapter-${n}.json`), 'utf8')) as {
+        tafsirs: { resource_id: number; verse_key: string; text: string }[];
+      };
+      const seen = new Set<number>();
+      for (const row of raw.tafsirs) {
+        if (row.resource_id !== src.resource_id) resourceIdOk = false;
+        const [s, a] = row.verse_key.split(':').map(Number);
+        if (s !== n) perSurahOk = false;
+        seen.add(a);
+        total++;
+        rawCache[src.id] = rawCache[src.id] ?? {};
+        rawCache[src.id][`${n}:${a}`] = htmlToPlain(row.text);
+      }
+      if (seen.size !== expectedCounts[n - 1] - (src.gapList.filter((k) => k.startsWith(`${n}:`)).length)) perSurahOk = false;
+    }
+    check(`[1] ${src.id}: عدد الآيات سورة بسورة == حزمة المصحف (مع النواقص الموثقة)`, perSurahOk && resourceIdOk, `${total} آية`);
+  }
+  check('[1] baghawi مكتمل 6236', Object.keys(rawCache['baghawi']).length === 6236);
+  check('[1] ibnkathir 6236 − 31 موثقة', Object.keys(rawCache['ibnkathir']).length === 6236 - 31, `${Object.keys(rawCache['ibnkathir']).length}`);
+
+  /* ---------- [2] سلامة الحزمة + تطابق التطبيع ---------- */
+  const bundle = JSON.parse(fs.readFileSync(BUNDLE, 'utf8')) as {
+    sources: { id: string }[];
+    gaps: Record<string, string[]>;
+    tafsir: Record<string, Record<string, string>>;
+  };
+  check('[2] مصدران في الحزمة', bundle.sources.length === 2 && bundle.sources.some((x) => x.id === 'ibnkathir') && bundle.sources.some((x) => x.id === 'baghawi'));
+  check('[2] 6236 مفتاحًا', Object.keys(bundle.tafsir).length === 6236, `${Object.keys(bundle.tafsir).length}`);
+  check('[2] نواقص الحزمة == القائمة الموثقة', JSON.stringify(bundle.gaps['ibnkathir']) === JSON.stringify(SOURCES[0].gapList) && bundle.gaps['baghawi'].length === 0);
+
+  const SAMPLES = ['1:1', '2:255', '33:42', '67:1', '112:1', '114:6'];
+  let samplesOk = true;
+  let emptyOk = true;
+  for (const [key, vals] of Object.entries(bundle.tafsir)) {
+    for (const v of Object.values(vals)) {
+      if (v.trim().length < 3) emptyOk = false;
+    }
+  }
+  for (const key of SAMPLES) {
+    for (const src of SOURCES) {
+      const rawPlain = rawCache[src.id][key];
+      const bundled = bundle.tafsir[key]?.[src.id];
+      if (rawPlain === undefined || bundled === undefined || stripAllWs(rawPlain) !== stripAllWs(bundled)) {
+        samplesOk = false;
+      }
+    }
+  }
+  check('[2] التطبيع == الخام (6 عينات × مصدرين، بعد إسقاط الوسوم)', samplesOk);
+  check('[2] لا نصوص فارغة/تالفة', emptyOk);
+
+  /* ---------- [3] المستودع ---------- */
+  validateTafsirBundle();
+  check('[3] الفحص البنيوي للحزمة ناجح (بدون استثناء)', true);
+  const srcs = getTafsirSources();
+  check('[3] مصادر = 2 (ibnkathir/baghawi)', srcs.length === 2 && srcs.some((x) => x.id === 'ibnkathir') && srcs.some((x) => x.id === 'baghawi'));
+  const ik11 = getTafsir(1, 1, 'ibnkathir');
+  check('[3] getTafsir(1,1,ibnkathir) غير فارغ وطويل', ik11 !== null && ik11.length > 1000, ik11 ? `طول=${ik11.length}` : 'null');
+  check('[3] getTafsir(1,1,baghawi) غير فارغ', getTafsir(1, 1, 'baghawi') !== null);
+  check('[3] نقص موثق (5:97 ibnkathir) → null', getTafsir(5, 97, 'ibnkathir') === null);
+  check('[3] نفس الآية في البغوي موجودة', getTafsir(5, 97, 'baghawi') !== null);
+  check('[3] معرف مصدر مرفوض → null', getTafsir(1, 1, 'bogus') === null);
+  check('[3] خارج النطاق (200:1) → null', getTafsir(200, 1, 'ibnkathir') === null);
+  check('[3] getTafsirGaps(ibnkathir) = 31', getTafsirGaps('ibnkathir').length === 31);
+
+  /* ---------- [4] بوابة العرض العثماني ---------- */
+  const UTHMANI_AYAH_SET: [number, number][] = [
+    [1, 1], [1, 2], [1, 5], [2, 255], [36, 1], [52, 1], [66, 1], [114, 5],
+  ];
+  let displayOk = true;
+  for (const [s, a] of UTHMANI_AYAH_SET) {
+    const info = getAyah(s, a);
+    const raw = (JSON.parse(fs.readFileSync(QURAN_BUNDLE, 'utf8')) as { ayahs: { surah: number; ayah: number; text: string }[] }).ayahs.find(
+      (x) => x.surah === s && x.ayah === a,
+    );
+    if (!info || !raw || info.text !== raw.text) displayOk = false;
+  }
+  check('[4] النص المعروض == حزمة Tanzil بايت-ببايت (8 عينات تشمل ٱ)', displayOk);
+  const f11 = getAyah(1, 1);
+  const f12 = getAyah(1, 2);
+  check('[4] حرف الهمزة الواصلة ٱ (U+0671) في عرض 1:1 و 1:2', !!f11 && f11.text.includes('\u0671') && !!f12 && f12.text.includes('\u0671'));
+  check('[4] التطبيع للبحث فقط: النص المعروض ≠ المطبع', !!f11 && normalizeArabicForSearch(f11.text) !== f11.text);
+
+  /* ---------- [5] كلمات الآية ---------- */
+  const words11 = getAyahWords(1, 1);
+  check('[5] كلمات 1:1 غير فارغة', words11.length > 0, `${words11.length} كلمة`);
+  if (f11) {
+    const rejoined = words11.join(' ');
+    const textNorm = f11.text.replace(/\s+/g, ' ').trim();
+    check('[5] إعادة تجميع الكلمات == نص الآية المعتمد (بدون تغيير)', rejoined === textNorm);
+  } else {
+    check('[5] إعادة تجميع الكلمات == نص الآية المعتمد (بدون تغيير)', false, 'لا آية 1:1');
+  }
+  check('[5] سورة غير موجودة → []', getAyahWords(999, 1).length === 0);
+
+  /* ---------- [6] لوحات صفحة المصحف ---------- */
+  const hexOk = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c);
+  check(
+    '[6] لوحات (رَقّ/ليل/غابة) بألوان hex صحيحة',
+    Object.values(mushafPalettes).every((p) => hexOk(p.page) && hexOk(p.quran) && hexOk(p.ayahMeta) && hexOk(p.border)),
+  );
+  check(
+    '[6] تسميات لكل الخيارات الأربعة',
+    (Object.keys(mushafBgLabels) as MushafBgChoice[]).length === 4,
+  );
+  check(
+    '[6] خلفية ليلية/غاباوية داكنة فعلًا (راحة العين)',
+    (['night', 'forest'] as const).every((k) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(mushafPalettes[k].page.slice(i, i + 2), 16));
+      return (r + g + b) / 3 < 80;
+    }),
+  );
+
+  /* ---------- [7] ترحيل المخطط 1→2 ---------- */
+  const TEST_DIR = path.join(ROOT, '.test-data');
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+  const MIG_DB = path.join(TEST_DIR, 'stage4-migration.realm');
+  const RealmCtor = getRealmCtor();
+  if (fs.existsSync(MIG_DB)) fs.unlinkSync(MIG_DB);
+  Promise.resolve().then(async () => {
+    // قاعدة قديمة بالإصدار 1
+    const oldRealm = await RealmCtor.open({ path: MIG_DB, schema: OLD_APP_SETTINGS_SCHEMA, schemaVersion: 1 });
+    oldRealm.write(() => {
+      oldRealm.create('AppSettings', {
+        id: 'app-settings',
+        theme: 'dark',
+        fontScale: 1.1,
+        readingMode: 'continuous',
+        lastSurahNumber: 2,
+        lastAyahNumber: 1,
+        lastReadAt: null,
+        dailyGoalUnit: 'ayahs',
+        dailyGoalValue: 20,
+        notificationsEnabled: false,
+        morningReminderTime: null,
+        eveningReminderTime: null,
+        updatedAt: new Date(),
+      });
+    });
+    oldRealm.close();
+
+    // الفتح بالإصدار الجديد → يُنفَّذ الترحيل
+    await openAppRealm(MIG_DB);
+    const rec = getOpenAppRealm().objects('AppSettings').filtered('id = $0', 'app-settings')[0] as unknown as {
+      mushafBg?: string;
+      theme: string;
+      lastSurahNumber: number;
+    };
+    check('[7] الترحيل 1→2 أضاف mushafBg = theme', rec?.mushafBg === 'theme', `الموجود: ${JSON.stringify(rec?.mushafBg)}`);
+    check('[7] بقيت البيانات القديمة سليمة (theme/الموضع)', rec?.theme === 'dark' && rec?.lastSurahNumber === 2);
+    closeAppRealm();
+
+    /* ---------- [8] خيط تحويل الأرقام الهندية في «الانتقال إلى آية» ---------- */
+  const screenSrc = fs.readFileSync(path.join(ROOT, 'src', 'features', 'quran', 'surah-screen.tsx'), 'utf8');
+  const dm = screenSrc.match(/String\('([٠-٩]+)\'\.indexOf\(d\)\)/);
+  check('[8] خيط الأرقام الهندية مكتمل (٠–٩)', dm !== null && dm[1] === '٠١٢٣٤٥٦٧٨٩', dm ? dm[1] : 'لم يُعثر عليه');
+
+  /* ---------- النتيجة ---------- */
+    console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+    if (failed > 0) process.exit(1);
+    process.exit(0);
+  }).catch((e: unknown) => {
+    console.error('فشل فتح قاعدة الترحيل', e);
+    process.exit(1);
+  });
+}
+
+main();
+```
+
+#### `tests/adhkar-stage5.test.ts`  ·  7.0KB
+
+```ts
+/**
+ * اختبار المرحلة 5 — الأذكار:
+ * [1] إعادة التحقق من بوابة الاعتماد على الملفات الخام (بصمات/أعداد).
+ * [2] سلامة الحزمة: 345 عنصرًا / 135 فئة + معرفات فريدة + بلا نصوص تالفة.
+ * [3] المستودع: الفئات بالعدود + الجلب بالمعرف.
+ * [4] قاعدة العرض: النص القرآني == Tanzil المعتمد بايت-ببايت + غير القرآني == المصدر.
+ * [5] تقدم الأذكار (Realm حقيقي): زيادة/سقف/تصفير/ملخص فئة/استعادة بعد إعادة الفتح.
+ * [6] عزل اليوم: سجل بتاريخ سابق لا يؤثر على «اليوم».
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { openAppRealm, closeAppRealm } from '../src/database/realm/realm';
+import {
+  validateAdhkarBundle,
+  getAdhkarCategories,
+  getAdhkarItemsByCategory,
+  getAdhkarItem,
+  getAdhkarDisplayText,
+} from '../src/repositories/adhkar-content-repository';
+import { getAdhkarProgressRepository, _resetAdhkarProgressRepositoryForTests } from '../src/repositories/adhkar-progress-repository';
+import { getAyah, getAyahsOfSurah } from '../src/repositories/quran-content-repository';
+
+const ROOT = path.join(__dirname, '..', '..');
+const REFS = path.join(ROOT, 'content', 'refs', 'adhkar');
+const RAW = path.join(REFS, 'azkar_obj.json');
+const RAW_MIT = path.join(REFS, 'morning_seen_ar.json');
+const MANIFEST = path.join(REFS, 'manifest.json');
+
+let passed = 0;
+let failed = 0;
+function check(name: string, cond: boolean, detail?: string): void {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed += 1;
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+const sha256 = (p: string) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+
+async function main() {
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf-8'));
+  const src = manifest.sources.find((s: { dataset: string }) => s.dataset === 'osamayy/azkar-db');
+  const mit = manifest.sources.find((s: { dataset: string }) => s.dataset.includes('Seen-Arabic'));
+
+  console.log('== [1] بوابة الاعتماد (الملفات الخام) ==');
+  check('بصمة المصدر الرئيسي == الـ manifest', !!(src && sha256(RAW) === src.sha256));
+  check('بصمة مصدر التحقق (MIT) == الـ manifest', !!(mit && sha256(RAW_MIT) === mit.sha256));
+  const raw = JSON.parse(fs.readFileSync(RAW, 'utf-8'));
+  check('الخام = 345 عنصرًا', Array.isArray(raw) && raw.length === 345);
+
+  console.log('== [2] سلامة الحزمة ==');
+  validateAdhkarBundle();
+  check('الاستدعاء الأول (فحص بنيوي) نجح', true);
+  const cats = getAdhkarCategories();
+  check('135 فئة وعدود مطابقة للمجموع', cats.length === 135 && cats.reduce((a, c) => a + c.itemCount, 0) === 345);
+  const morning = cats.find(c => c.name === 'أذكار الصباح');
+  const evening = cats.find(c => c.name === 'أذكار المساء');
+  check('الصباح 31 والمساء 30 (حصن المسلم)', morning?.itemCount === 31 && evening?.itemCount === 30);
+
+  console.log('== [3] المستودع ==');
+  const first = morning ? getAdhkarItemsByCategory(morning.id)[0] : undefined;
+  check('جلب عناصر الصباح (31)', !!(morning && getAdhkarItemsByCategory(morning.id).length === 31));
+  check('جلب بالمعرف == نفس العنصر', !!(first && getAdhkarItem(first.id)?.zekr === first.zekr));
+
+  console.log('== [4] قاعدة العرض ==');
+  // عنصر قرآني كامل (الإخلاص)
+  const ikhlas = getAdhkarItemsByCategory(morning!.id).find(i => i.quranRef === '112:*')
+    || getAdhkarItemsByCategory(morning!.id).find(i => (i.reference || '').includes('الإخلاص'));
+  check('وُجد عنصر الإخلاص بمرجع قرآني', !!ikhlas && !!ikhlas.quranRef, JSON.stringify(ikhlas?.quranRef));
+  if (ikhlas) {
+    const tanzil = getAyahsOfSurah(112).map(a => a.text).join('');
+    check('نص الإخلاص المعروض == Tanzil بايت-ببايت', getAdhkarDisplayText(ikhlas) === tanzil);
+  }
+  // آية مفردة (الكرسي)
+  const kursi = getAdhkarItemsByCategory(morning!.id).find(i => i.quranRef === '2:255');
+  if (kursi) {
+    const t = getAyah(2, 255)?.text ?? '';
+    check('نص الكرسي المعروض == Tanzil (2:255) بايت-ببايت', getAdhkarDisplayText(kursi) === t);
+  } else {
+    check('وُجد عنصر الكرسي بمرجع 2:255', false);
+  }
+  // غير قرآني == المصدر
+  const plain = getAdhkarItemsByCategory(morning!.id).find(i => !i.quranRef);
+  check('غير القرآني == نص المصدر (بلا تعديل)', !!plain && getAdhkarDisplayText(plain) === plain.zekr);
+
+  console.log('== [5] تقدم الأذكار (Realm حقيقي) ==');
+  const TEST_DIR = path.join(ROOT, '.test-data');
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_DIR, { recursive: true });
+  const TEST_DB = path.join(TEST_DIR, 'stage5-adhkar.realm');
+  await openAppRealm(TEST_DB);
+  _resetAdhkarProgressRepositoryForTests();
+  const repo = getAdhkarProgressRepository();
+  const target = 3;
+  const idA = '5-1';
+  check('بدون سجل = صفر', repo.getToday(idA).countCompleted === 0);
+  const r1 = repo.recordDhikr(idA, target);
+  const r2 = repo.recordDhikr(idA, target);
+  const r3 = repo.recordDhikr(idA, target);
+  const r4 = repo.recordDhikr(idA, target); // فوق السقف
+  check('زيادة 0→1→2→3 ثم سقف (لا 4)', r1.countCompleted === 1 && r2.countCompleted === 2 && r3.countCompleted === 3 && r4.countCompleted === 3 && r4.completed);
+  const items = [
+    { id: idA, count: target },
+    { id: '5-2', count: 1 },
+    { id: '5-3', count: 7 },
+  ];
+  repo.recordDhikr('5-2', 1);
+  check('ملخص الفئة: 2/3 مكتمل (3-1 و 5-2)', repo.getCategoryToday(items).done === 2 && repo.getCategoryToday(items).total === 3);
+  repo.resetToday(idA);
+  check('تصفير = صفر', repo.getToday(idA).countCompleted === 0);
+
+  // استعادة بعد إعادة الفتح
+  closeAppRealm();
+  await openAppRealm(TEST_DB);
+  _resetAdhkarProgressRepositoryForTests();
+  const repo2 = getAdhkarProgressRepository();
+  check('استعادة بعد إعادة الفتح: 5-2 = 1/1 مكتمل', repo2.getToday('5-2').countCompleted === 1 && repo2.getToday('5-2').completed);
+
+  console.log('== [6] عزل اليوم ==');
+  const pastKey = '2020-01-01';
+  repo2.recordDhikr('5-3', 7, pastKey);
+  check('سجل بتاريخ سابق لا يظهر في «اليوم»', repo2.getToday('5-3').countCompleted === 0 && repo2.getToday('5-3', pastKey).countCompleted === 1);
+  closeAppRealm();
+
+  console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
+  // Realm الأصلية تحافظ على حلقة الأحداث — إغلاق صريح بعد اكتمال الفحوص
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main().catch(e => {
+  console.error('فشل تشغيل الاختبار:', e);
+  process.exit(1);
+});
+```
+
+### 8.8) scripts (بوابات الاستيراد والخوادم)
+
+#### `scripts/import-quran.mjs`  ·  17.1KB
+
+```ts
+#!/usr/bin/env node
+/**
+ * خدمة استيراد بيانات المصحف — بوابة اعتماد المحتوى (05-CONTENT-AND-TRUST §5).
+ *
+ * المدخلات (مثبتتان بالبصمة — أي تغيير يوقف الاستيراد):
+ *  1. content/quran-uthmani.txt                  — Tanzil Uthmani v1.1 (النص)
+ *  2. content/refs/quran-metadata-tanzil-v1.0.xml — Tanzil Quran Metadata v1.0 (البنية)
+ *
+ * المخرجات:
+ *  - content/quran-data.json  — حزمة المحتوى الموثقة (فهرس السور + الآيات + الحقول المشتقة)
+ *  - content/IMPORT-REPORT.md — سجل بوابة الاعتماد (مصدر/إصدار/ترخيص/نتائج الفحص)
+ *
+ * طبقات الفحص (05-5):
+ *  G1  بنية السور: 114 سورة مرقمة 1..114 متتابعة في النص وفي البيانات الوصفية.
+ *  G2  عدد آيات كل سورة في النص == عدد الآيات في البيانات الوصفية (مصدر مستقل).
+ *  G3  عدد الآيات == الجدول المستقل المعتمد (حفص عن عاصم، المجموع 6236).
+ *  G4  مطابقة بايت-ببايت: إعادة بناء الأسطر s|a|text من الحزمة == أسطر الملف الأصلي.
+ *  G5  السجدات: عدد ۩ في النص == عدد سجلات sajdah في الوصفية، ومطابقة المواضع.
+ *  G6  العلامات محفوظة: ۖ و۞ موجودة، ولا يوجد تطبيع (النص كما هو — 05-1 «لا تصحيح تلقائي»).
+ *  G7  أداة الفحص المستقلة (validate-quran.mjs) تنجح (18/18) كعملية فرعية.
+ *  G8  لا معرفات مكررة: كل id سورة/آية فريد (05-5-3).
+ *
+ * لا يُستخدم نموذج لغوي في أي خطوة (05-1) — محلل حتمي بالكامل.
+ *
+ * الاستدعاء: node scripts/import-quran.mjs
+ */
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(__dirname, '..');
+const TEXT_FILE = path.join(ROOT, 'content', 'quran-uthmani.txt');
+const META_FILE = path.join(ROOT, 'content', 'refs', 'quran-metadata-tanzil-v1.0.xml');
+const OUT_JSON = path.join(ROOT, 'content', 'quran-data.json');
+const OUT_REPORT = path.join(ROOT, 'content', 'IMPORT-REPORT.md');
+
+/** البصمات المثبتة (Stage 0 — فُحصت بمقابل مرجعي مستقل) */
+const PINNED_TEXT_SHA256 = '7f30c647331a61100ebf24a80507dc0fcdd9f2df97f1312b5b2dfcb982a7f326';
+const PINNED_META_SHA256 = '8867c1d88191472adec9db694b3cd9f135b1a2ef580574d32cf888dcb22c5c7a';
+
+/** عدد آيات كل سورة 1..114 — رواية حفص عن عاصم (مجموع 6236) — جدول مستقل من النص والوصفية */
+const EXPECTED_AYAH_COUNTS = [
+  7, 286, 200, 176, 120, 165, 206, 75, 129, 109,
+  123, 111, 43, 52, 99, 128, 111, 110, 98, 135,
+  112, 78, 118, 64, 77, 227, 93, 88, 69, 60,
+  34, 30, 73, 54, 45, 83, 182, 88, 75, 85,
+  54, 53, 89, 59, 37, 35, 38, 29, 18, 45,
+  60, 49, 62, 55, 78, 96, 29, 22, 24, 13,
+  14, 11, 11, 18, 12, 12, 30, 52, 52, 44,
+  28, 28, 20, 56, 40, 31, 50, 40, 46, 42,
+  29, 19, 36, 25, 22, 17, 19, 26, 30, 20,
+  15, 21, 11, 8, 8, 19, 5, 8, 8, 11,
+  11, 8, 3, 9, 5, 4, 7, 3, 6, 3,
+  5, 4, 5, 6,
+];
+
+const WAQF_MARK = '\u06D6'; // ۖ
+const SAJDAH_MARK = '\u06E9'; // ۩
+const RUB_EL_HIZB = '\u06DE'; // ۞
+
+const checks = [];
+function check(id, name, ok, detail = '') {
+  checks.push({ id, name, ok, detail });
+  const mark = ok ? '✓' : '✗';
+  console.log(`  ${mark} ${id} — ${name}${detail ? ` — ${detail}` : ''}`);
+  if (!ok) process.exitCode = 1;
+}
+
+function sha256(file) {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+/** تطبيع عربي للبحث فقط (03-REALM §5): يُخزن نص البحث مشتقًا، والنص الأصلي بلا تغيير.
+ *  1) حذف التشكيل والتطويل  2) حذف علامات المصحف  3) توحيد الألف وة→ه وى→ي */
+export function normalizeArabicForSearch(s) {
+  return s
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '') // تشكيل + تطويل
+    .replace(/[\u06D6\u06D7\u06D8\u06D9\u06DA\u06DE\u06DF\u06E9]/g, '') // علامات الوقف/الحزب/السجدة
+    .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627') // آ أ إ ٱ → ا
+    .replace(/\u0629/g, '\u0647') // ة → ه
+    .replace(/\u0649/g, '\u064A') // ى → ي
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// ---------- قراءة المدخلات ----------
+console.log('== قراءة المدخلات وثبات البصمات ==');
+if (!existsSync(TEXT_FILE)) throw new Error('الملف النصي مفقود: ' + TEXT_FILE);
+if (!existsSync(META_FILE)) throw new Error('ملف الوصفية مفقود: ' + META_FILE);
+
+const textSha = sha256(TEXT_FILE);
+const metaSha = sha256(META_FILE);
+check('S1', 'بصمة الملف النصي مطابقة للمثبتة', textSha === PINNED_TEXT_SHA256, textSha.slice(0, 16) + '…');
+check('S2', 'بصمة ملف الوصفية مطابقة للمثبتة', metaSha === PINNED_META_SHA256, metaSha.slice(0, 16) + '…');
+if (process.exitCode) {
+  console.error('أوقف الاستيراد: المدخلات غير مطابقة للبصمات المثبتة. حدّث البصمات في السكربت مع توثيق سبب التغيير.');
+  process.exit(1);
+}
+
+const rawLines = readFileSync(TEXT_FILE, 'utf8').split('\n');
+const dataLines = rawLines.filter((l) => l.trim() !== '' && !l.startsWith('#'));
+const rawXml = readFileSync(META_FILE, 'utf8');
+
+// ---------- تحليل الوصفية (XML) ----------
+function parseTags(xml, tag) {
+  const re = new RegExp(`<${tag}\\s+([^>/]*)/?>`, 'g');
+  const out = [];
+  let m;
+  while ((m = re.exec(xml))) {
+    const attrs = {};
+    const are = /(\w+)="([^"]*)"/g;
+    let am;
+    while ((am = are.exec(m[1]))) attrs[am[1]] = am[2];
+    out.push(attrs);
+  }
+  return out;
+}
+
+const metaSuras = parseTags(rawXml, 'sura').map((a) => ({
+  number: Number(a.index),
+  ayahCount: Number(a.ayas),
+  startLine: Number(a.start),
+  nameArabic: a.name,
+  nameTransliteration: a.tname,
+  revelationType: a.type, // Meccan | Medinan
+  rukus: Number(a.rukus),
+}));
+const metaJuz = parseTags(rawXml, 'juz').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya) }));
+const metaQuarter = parseTags(rawXml, 'quarter').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya) }));
+const metaManzil = parseTags(rawXml, 'manzil').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya) }));
+const metaRuku = parseTags(rawXml, 'ruku').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya) }));
+const metaPage = parseTags(rawXml, 'page').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya) }));
+const metaSajda = parseTags(rawXml, 'sajda').map((a) => ({ index: Number(a.index), sura: Number(a.sura), aya: Number(a.aya), type: a.type }));
+
+// ---------- تحليل النص ----------
+const ayahs = [];
+const textCounts = new Map();
+for (const line of dataLines) {
+  const parts = line.split('|');
+  if (parts.length !== 3) {
+    check('F1', 'بنية الأسطر s|a|text', false, line.slice(0, 40));
+    process.exit(1);
+  }
+  const [sRaw, aRaw, text] = parts;
+  const s = Number(sRaw);
+  const a = Number(aRaw);
+  if (!Number.isInteger(s) || !Number.isInteger(a) || s < 1 || s > 114 || a < 1) {
+    check('F1', 'ترقيم صالح لكل سطر', false, line.slice(0, 40));
+    process.exit(1);
+  }
+  textCounts.set(s, (textCounts.get(s) ?? 0) + 1);
+  ayahs.push({ surah: s, ayah: a, text });
+}
+
+// ---------- G1: بنية السور ----------
+const suraNumbersOk = metaSuras.length === 114 && metaSuras.every((x, i) => x.number === i + 1);
+check('G1', '114 سورة مرقمة 1..114 متتابعة (الوصفية)', suraNumbersOk);
+const textSuraOrderOk = dataLines.every((line, i) => {
+  const s = Number(line.split('|')[0]);
+  const a = Number(line.split('|')[1]);
+  const prev = i === 0 ? null : dataLines[i - 1].split('|').map(Number);
+  if (i === 0) return s === 1 && a === 1;
+  const [ps, pa] = prev;
+  if (s === ps) return a === pa + 1;
+  return s === ps + 1 && a === 1;
+});
+check('G1b', 'ترقيم النص متتابع (سورة/آية) من 1:1 إلى 114:نهاية', textSuraOrderOk, `آخر سطر: ${dataLines[dataLines.length - 1].slice(0, 12)}…`);
+
+// ---------- G2: عدد الآيات == الوصفية ----------
+let g2Bad = 0;
+for (const ms of metaSuras) {
+  const t = textCounts.get(ms.number) ?? 0;
+  if (t !== ms.ayahCount) {
+    g2Bad++;
+    if (g2Bad <= 5) console.error(`    mismatch سورة ${ms.number}: نص=${t} وصفية=${ms.ayahCount}`);
+  }
+}
+check('G2', 'عدد آيات كل سورة في النص == البيانات الوصفية (مصدر مستقل)', g2Bad === 0, `${114 - g2Bad}/114 مطابقة`);
+
+// ---------- G3: الجدول المستقل (حفص عن عاصم) ----------
+let g3Bad = 0;
+for (let i = 0; i < 114; i++) {
+  const t = textCounts.get(i + 1) ?? 0;
+  if (t !== EXPECTED_AYAH_COUNTS[i]) g3Bad++;
+}
+check('G3', 'عدد الآيات == الجدول المستقل (حفص عن عاصم)', g3Bad === 0, `المجموع=${ayahs.length}/6236`);
+
+// ---------- G4: مطابقة بايت-ببايت ----------
+const rebuilt = ayahs.map((x) => `${x.surah}|${x.ayah}|${x.text}`);
+let g4Bad = -1;
+if (rebuilt.length === dataLines.length) {
+  for (let i = 0; i < dataLines.length; i++) {
+    if (rebuilt[i] !== dataLines[i]) {
+      g4Bad = i;
+      break;
+    }
+  }
+}
+check('G4', 'إعادة بناء السطر من الحزمة == الملف الأصلي (بايت-ببايت)', g4Bad === -1, g4Bad === -1 ? `${dataLines.length} سطر` : `اختلاف عند السطر ${g4Bad}`);
+
+// ---------- G5: السجدات ----------
+const sajdaSet = new Set(metaSajda.map((x) => `${x.sura}:${x.aya}`));
+let g5Detail = `وصفية=${metaSajda.length}`;
+const textSajdaLines = new Set();
+for (const x of ayahs) {
+  if (x.text.endsWith(SAJDAH_MARK)) textSajdaLines.add(`${x.surah}:${x.ayah}`);
+}
+g5Detail += `، نص=${textSajdaLines.size}`;
+let g5Mismatch = 0;
+for (const k of textSajdaLines) if (!sajdaSet.has(k)) g5Mismatch++;
+for (const k of sajdaSet) if (!textSajdaLines.has(k)) g5Mismatch++;
+check('G5', 'مواضع السجدات ۩ في النص == سجلات sajdah في الوصفية', g5Mismatch === 0, g5Detail);
+
+// ---------- G6: العلامات محفوظة بلا تطبيع ----------
+const hasWaqf = ayahs.some((x) => x.text.includes(WAQF_MARK));
+const hasRub = ayahs.some((x) => x.text.includes(RUB_EL_HIZB));
+const hasTashkeel = ayahs[0].text.includes('\u0650'); // 1:1 فيها كسرة/فتحة
+check('G6', 'العلامات (ۖ ۞ ۩) والتشكيل محفوظة كما في المصدر', hasWaqf && hasRub && hasTashkeel);
+
+// ---------- G7: أداة الفحص المستقلة ----------
+const validator = spawnSync('node', [path.join(__dirname, 'validate-quran.mjs'), TEXT_FILE], { encoding: 'utf8' });
+check('G7', 'أداة الفحص المستقلة (18/18) تنجح', validator.status === 0, validator.status === 0 ? 'exit 0' : `exit ${validator.status}`);
+
+// ---------- G8: معرفات فريدة ----------
+const seen = new Set();
+let dup = 0;
+for (const x of ayahs) {
+  const id = `${x.surah}:${x.ayah}`;
+  if (seen.has(id)) dup++;
+  seen.add(id);
+}
+check('G8', 'لا معرفات آية مكررة (s:a فريد)', dup === 0, `${ayahs.length} معرف`);
+
+// ---------- الحقول المشتقة (تقسيم المصحف) ----------
+function cmpPos(s, a, t) {
+  // يرجع true إذا كان (s,a) ≥ موضع البداية (t.sura, t.aya)
+  return s > t.sura || (s === t.sura && a >= t.aya);
+}
+function lastAtOrBefore(s, a, list) {
+  // قائمة مرتبة بموضع البداية — نأخذ آخر عنصر ≤ (s,a) (بحث خطي كافٍ: القوائم قصيرة)
+  let best = list[0];
+  for (const t of list) {
+    if (cmpPos(s, a, t)) best = t;
+    else break;
+  }
+  return best;
+}
+const sajdahPos = new Set(metaSajda.map((x) => `${x.sura}:${x.aya}`));
+
+const bundleAyahs = ayahs.map((x) => ({
+  id: `${x.surah}:${x.ayah}`,
+  surah: x.surah,
+  ayah: x.ayah,
+  text: x.text,
+  search: normalizeArabicForSearch(x.text),
+  juz: lastAtOrBefore(x.surah, x.ayah, metaJuz).index,
+  quarter: lastAtOrBefore(x.surah, x.ayah, metaQuarter).index,
+  manzil: lastAtOrBefore(x.surah, x.ayah, metaManzil).index,
+  ruku: lastAtOrBefore(x.surah, x.ayah, metaRuku).index,
+  page: lastAtOrBefore(x.surah, x.ayah, metaPage).index,
+  sajdah: sajdahPos.has(`${x.surah}:${x.ayah}`),
+}));
+
+const bundleSurahs = metaSuras.map((s) => ({
+  number: s.number,
+  nameArabic: s.nameArabic,
+  nameTransliteration: s.nameTransliteration,
+  ayahCount: s.ayahCount,
+  revelationType: s.revelationType === 'Medinan' ? 'مدنية' : 'مكية',
+  startLine: s.startLine,
+  rukus: s.rukus,
+}));
+
+const content = {
+  surahs: bundleSurahs,
+  ayahs: bundleAyahs,
+};
+const contentJson = JSON.stringify(content);
+const bundleChecksum = createHash('sha256').update(contentJson, 'utf8').digest('hex');
+
+const bundle = {
+  manifest: {
+    id: 'tanzil-uthmani-quran-1.1',
+    sourceName: 'Tanzil Project — Tanzil Quran Text (Uthmani)',
+    sourceVersion: '1.1',
+    license: 'CC-BY 3.0 (نسخ حرفية فقط مع نسبة المصدر)',
+    sourceUrl: 'https://tanzil.net/',
+    textChecksum: textSha,
+    metadataSourceName: 'Tanzil Project — Quran Metadata',
+    metadataSourceVersion: '1.0',
+    metadataLicense: 'CC-BY (حسب ترويسة الملف: license="cc-by")',
+    metadataUrl: 'https://tanzil.net/docs/Quran_Metadata',
+    metadataChecksum: metaSha,
+    surahCount: 114,
+    ayahCount: ayahs.length,
+    contentChecksum: bundleChecksum,
+    generatedAt: new Date().toISOString(),
+    searchNormalization:
+      'بحث فقط (لا يُعرض للمستخدم): حذف التشكيل/التطويل/علامات المصحف، توحيد الألف (آأإٱ→ا)، ة→ه، ى→ي',
+    validation: {
+      status: checks.every((c) => c.ok) ? 'passed' : 'failed',
+      checks: checks.map((c) => ({ id: c.id, name: c.name, ok: c.ok, detail: c.detail })),
+    },
+  },
+  ...content,
+};
+
+if (checks.every((c) => c.ok)) {
+  writeFileSync(OUT_JSON, JSON.stringify(bundle), 'utf8');
+  console.log(`\n== الحزمة كُتبت: ${path.relative(ROOT, OUT_JSON)} (${(JSON.stringify(bundle).length / 1024).toFixed(0)} KB) ==`);
+} else {
+  console.error('\n== فشل بوابة الاعتماد — لم تُكتب الحزمة ==');
+  process.exit(1);
+}
+
+// ---------- سجل البوابة (05-5-7: تسجيل إصدار الحزمة ونتيجة الفحص) ----------
+const report = `# سجل اعتماد حزمة بيانات المصحف — المرحلة 2
+
+**تاريخ الاعتماد:** ${new Date().toISOString()}
+**الحالة:** ${checks.every((c) => c.ok) ? '✅ ناجحة — الحزمة مقبولة' : '❌ فاشلة — لم تُكتب الحزمة'}
+
+## المصادر (05-1: تسجيل اسم المصدر والإصدار والترخيص وتاريخ الاستيراد)
+| العنصر | القيمة |
+|---|---|
+| النص القرآني | Tanzil Project — Tanzil Quran Text (Uthmani) **v1.1** |
+| ترخيص النص | CC-BY 3.0 — نسخ حرفية فقط + نسبة المصدر + رابط tanzil.net (05-1) |
+| رابط المصدر | https://tanzil.net/ |
+| بصمة النص SHA-256 | \`${textSha}\` |
+| البيانات الوصفية | Tanzil Project — Quran Metadata **v1.0** |
+| ترخيص الوصفية | CC-BY (ترويسة الملف) |
+| رابط الوصفية | https://tanzil.net/docs/Quran_Metadata |
+| بصمة الوصفية SHA-256 | \`${metaSha}\` |
+| بصمة محتوى الحزمة (content) | \`${bundleChecksum}\` |
+
+## نتائج بوابة الاعتماد (05-5)
+| # | الفحص | النتيجة | التفصيل |
+|---|---|---|---|
+${checks.map((c) => `| ${c.id} | ${c.name} | ${c.ok ? '✓ نجح' : '✗ فشل'} | ${c.detail} |`).join('\n')}
+
+## المخرجات
+- \`content/quran-data.json\` — 114 سورة، ${ayahs.length} آية، مع حقول مشتقة (جزء/ربع حزب/موضع/ركوع/صفحة مدنية/سجدة) وحقل بحث مُطبَّع.
+- النص القرآني **بلا أي تغيير** (G4 بايت-ببايت، G6 علامات وتشكيل محفوظة).
+- لم يُستخدم نموذج لغوي في أي خطوة (05-1).
+
+## مراجعة بشرية (05-5-6)
+عيّنات مطبوعة لمراجعة بصرية (بداية/وسط/نهاية):
+- 1:1 — ${ayahs[0].text}
+- 2:255 — ${ayahs.find((x) => x.surah === 2 && x.ayah === 255).text.slice(0, 80)}…
+- 36:1 — ${ayahs.find((x) => x.surah === 36 && x.ayah === 1).text.slice(0, 60)}…
+- 114:6 — ${ayahs.find((x) => x.surah === 114 && x.ayah === 6).text}
+
+**المُراجع:** إيهاب عجور أبو الأمير (مطور التطبيق) — تُوثَّق المراجعة في STAGE-PROGRESS.md.
+`;
+writeFileSync(OUT_REPORT, report, 'utf8');
+console.log(`== السجل كُتب: ${path.relative(ROOT, OUT_REPORT)} ==`);
+
+const failed = checks.filter((c) => !c.ok).length;
+console.log(`النتيجة: ${checks.length - failed}/${checks.length} فحصًا ناجحًا`);
+```
+
+#### `scripts/validate-quran.mjs`  ·  10.3KB
+
+```ts
+#!/usr/bin/env node
+/**
+ * فحص سلامة نص القرآن (Tanzil Uthmani) — يُشغَّل قبل أي استيراد للمحتوى.
+ * المرجع: 05-CONTENT-AND-TRUST.md (القسم 1) وبوابة اعتماد المحتوى (القسم 5)
+ *
+ * طبقات الفحص:
+ * A) بنية موضوعية: 114 سورة بالترتيب، عدد آيات كل سورة مطابق للجدل المعتمد
+ *    (حفص عن عاصم، المجموع 6236)، ترقيم متتابع، لا آية فارغة.
+ * B) مقارنة بايت-ببايت مع نسخة مرجعية مستقلة (مرآة Tanzil v1.1 محفوظة في content/refs/).
+ * C) اتساق داخلي: البسملة = نص 1:1، موجودة في آية افتتاحية كل سورة عدا 1 و9،
+ *    و9:1 بلا بسملة.
+ * D) العلامات: وجود علامات الوقف ۖ والسجدة ۩ وربع الحزب ۞.
+ * E) الترخيص: حفظ بلوك حقوق Tanzil.
+ *
+ * العيّنات المطبوعة في النهاية تُراجع بصريًا يدويًا (متطلب 05-1) ويُوثَّق المراجع
+ * في validation-report.json.
+ *
+ * الاستدعاء: node scripts/validate-quran.mjs [مسار الملف]
+ */
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FILE = process.argv[2] ?? path.join(__dirname, '..', 'content', 'quran-uthmani.txt');
+const MIRROR = path.join(__dirname, '..', 'content', 'refs', 'tanzil-mirror-v1.1.txt');
+
+/** عدد آيات كل سورة 1..114 — رواية حفص عن عاصم (المجموع 6236) */
+const EXPECTED_AYAH_COUNTS = [
+  7, 286, 200, 176, 120, 165, 206, 75, 129, 109, // 1-10
+  123, 111, 43, 52, 99, 128, 111, 110, 98, 135, // 11-20
+  112, 78, 118, 64, 77, 227, 93, 88, 69, 60, // 21-30
+  34, 30, 73, 54, 45, 83, 182, 88, 75, 85, // 31-40
+  54, 53, 89, 59, 37, 35, 38, 29, 18, 45, // 41-50
+  60, 49, 62, 55, 78, 96, 29, 22, 24, 13, // 51-60
+  14, 11, 11, 18, 12, 12, 30, 52, 52, 44, // 61-70
+  28, 28, 20, 56, 40, 31, 50, 40, 46, 42, // 71-80
+  29, 19, 36, 25, 22, 17, 19, 26, 30, 20, // 81-90
+  15, 21, 11, 8, 8, 19, 5, 8, 8, 11, // 91-100
+  11, 8, 3, 9, 5, 4, 7, 3, 6, 3, // 101-110
+  5, 4, 5, 6, // 111-114
+];
+
+const WAQF_MARK = '\u06D6'; // ۖ
+const SAJDAH_MARK = '\u06E9'; // ۩
+const RUB_EL_HIZB = '\u06DE'; // ۞
+
+const results = [];
+let pass = 0;
+let fail = 0;
+
+function check(name, cond, detail = '') {
+  if (cond) {
+    pass += 1;
+    results.push({ name, ok: true, detail });
+    console.log(`  ✓ ${name}${detail ? ` — ${detail}` : ''}`);
+  } else {
+    fail += 1;
+    results.push({ name, ok: false, detail });
+    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+function parseAyahs(raw) {
+  const ayahs = [];
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('#') || line === '') continue;
+    const m = line.match(/^(\d+)\|(\d+)\|(.+)$/);
+    if (!m) return { ayahs: null, badLine: line };
+    ayahs.push({ surah: Number(m[1]), ayah: Number(m[2]), text: m[3] });
+  }
+  return { ayahs, badLine: null };
+}
+
+const raw = readFileSync(FILE, 'utf8');
+
+console.log('\n— أ) فحص الملف والبنية الموضوعية —');
+check('الملف UTF-8 بلا BOM', !raw.startsWith('\uFEFF'));
+check('بلا أسطر CRLF', !raw.includes('\r'));
+
+const parsed = parseAyahs(raw);
+check('كل الأسطر بصيغة sora|ayah|نص', parsed.ayahs !== null, parsed.badLine ? `سطر مخالف: "${(parsed.badLine ?? '').slice(0, 40)}"` : '');
+const ayahs = parsed.ayahs;
+if (!ayahs) process.exit(1);
+
+check('عدد الآيات الإجمالي = 6236', ayahs.length === 6236, `الفعلي ${ayahs.length}`);
+const surahs = [...new Set(ayahs.map((a) => a.surah))];
+check('عدد السور = 114', surahs.length === 114, `الفعلي ${surahs.length}`);
+check('ترقيم السور 1..114 بالترتيب', surahs.every((s, i) => s === i + 1));
+
+// الترقيم المتتابع داخل كل سورة
+let sequentialOk = true;
+let perSurahOk = true;
+const counter = {};
+const perSurah = {};
+for (const a of ayahs) {
+  counter[a.surah] = (counter[a.surah] ?? 0) + 1;
+  perSurah[a.surah] = (perSurah[a.surah] ?? 0) + 1;
+  if (a.ayah !== counter[a.surah]) sequentialOk = false;
+}
+for (let s = 1; s <= 114; s++) {
+  if ((perSurah[s] ?? 0) !== EXPECTED_AYAH_COUNTS[s - 1]) perSurahOk = false;
+}
+check('ترقيم الآيات متتابع داخل كل سورة بدءًا من 1', sequentialOk);
+check(
+  'عدد آيات كل سورة مطابق للجدول المعتمد (مجموع 6236)',
+  perSurahOk && EXPECTED_AYAH_COUNTS.reduce((x, y) => x + y, 0) === 6236,
+);
+check('لا آية بنص فارغ', ayahs.every((a) => a.text.trim().length > 0));
+
+console.log('\n— ب) مقارنة بايت-ببايت مع نسخة مرجعية مستقلة —');
+if (existsSync(MIRROR)) {
+  const mirror = readFileSync(MIRROR, 'utf8');
+  const mParsed = parseAyahs(mirror);
+  const mirrorAyahs = mParsed.ayahs;
+  const same =
+    mirrorAyahs !== null &&
+    mirrorAyahs.length === ayahs.length &&
+    mirrorAyahs.every((a, i) => a.text === ayahs[i].text && a.surah === ayahs[i].surah && a.ayah === ayahs[i].ayah);
+  check('الآيات الـ6236 مطابقة بايت-ببايت للمرآة المستقلة', same);
+} else {
+  check('توفرت المرآة المستقلة للمقارنة', false, 'content/refs/tanzil-mirror-v1.1.txt غير موجودة');
+}
+
+console.log('\n— ج) الاتساق الداخلي (البسملة) —');
+const byRef = new Map(ayahs.map((a) => [`${a.surah}:${a.ayah}`, a.text]));
+const basmala = byRef.get('1:1');
+check('وُجدت آية 1:1', !!basmala);
+check('البسملة 4 كلمات', basmala.split(' ').length === 4);
+
+// في نص Tanzil العثماني تختلف الكلمة الأولى أحيانًا بين بسملة 1:1 وبسملة
+// بعض السور (بِسْمِ مقابل بِّسْمِ بالمشددة) — وهذا اختلاف رسم موثق في المصدر.
+// الفحص: الكلمات 2-4 مطابقة حرفيًا، والكلمة الأولى تنتهي بنفس الثلاثي الأخير.
+const bWords = basmala.split(' ');
+const bTail3 = bWords.slice(1).join(' '); // ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ
+const bFirstEnd = bWords[0].slice(-3);
+const firstWordVariants = new Set([bWords[0]]);
+let basmalaOk = true;
+let missing = [];
+for (let s = 2; s <= 114; s++) {
+  if (s === 9) continue;
+  const w = (byRef.get(`${s}:1`) ?? '').split(' ');
+  const bodyOk = w.length >= 4 && w.slice(1, 4).join(' ') === bTail3;
+  const firstOk = w[0].length >= 5 && w[0].endsWith(bFirstEnd);
+  if (bodyOk && firstOk) firstWordVariants.add(w[0]);
+  else {
+    basmalaOk = false;
+    missing.push(s);
+  }
+}
+check(
+  'البسملة في الآية الافتتاحية لكل سورة عدا 1 و9 (الكلمات 2-4 مطابقة والكلمة الأولى بنهاية موحدة)',
+  basmalaOk,
+  missing.length ? 'سور مخالفة: ' + missing.join(',') : `صيغ الكلمة الأولى: ${firstWordVariants.size}`,
+);
+check('9:1 بلا بسملة', !((byRef.get('9:1') ?? '').split(' ').slice(1, 4).join(' ') === bTail3));
+
+console.log('\n— د) العلامات —');
+const full = ayahs.map((a) => a.text).join(' ');
+const countOf = (ch) => (full.match(new RegExp(ch, 'g')) ?? []).length;
+check(`وجود علامات الوقف ۖ`, countOf(WAQF_MARK) > 0, `عدد المواضع: ${countOf(WAQF_MARK)}`);
+check(`وجود علامات السجدة ۩`, countOf(SAJDAH_MARK) > 0, `عدد المواضع: ${countOf(SAJDAH_MARK)}`);
+check(`وجود علامات ربع الحزب ۞`, countOf(RUB_EL_HIZB) > 0, `عدد المواضع: ${countOf(RUB_EL_HIZB)}`);
+
+console.log('\n— هـ) الترخيص —');
+check('حُفظ بلوك حقوق Tanzil في نهاية الملف', raw.includes('Tanzil Quran Text (Uthmani, Version 1.1)') && raw.includes('Creative Commons Attribution 3.0'));
+
+console.log('\n— عيّنات للمراجعة البصرية (متطلب 05-1) —');
+for (const ref of ['1:1', '2:1', '2:255', '18:1', '36:83', '112:1', '114:1', '114:6']) {
+  console.log(`  ${ref}: ${(byRef.get(ref) ?? '(غير موجودة)').slice(0, 60)}`);
+}
+
+const checksum = createHash('sha256').update(raw).digest('hex');
+const report = {
+  file: path.relative(process.cwd(), FILE),
+  checkedAt: new Date().toISOString(),
+  source: {
+    name: 'Tanzil Quran Text (Uthmani)',
+    version: '1.1',
+    license: 'Creative Commons Attribution 3.0 — نسخ حرفية دون تغيير، مع نسبة المصدر (Tanzil Project) ورابط tanzil.net في التطبيق',
+    url: 'https://tanzil.net/download/',
+    obtainedVia: 'نموذج التوزيع الرسمي (GET): نوع النص Uthmani، الصيغة Text (with aya numbers)، مع علامات الوقف والسجدة وربع الحزب والتطويل تحت الألف فوقية',
+  },
+  sha256: checksum,
+  bytes: Buffer.byteLength(raw, 'utf8'),
+  crossValidation: {
+    mirror: 'content/refs/tanzil-mirror-v1.1.txt (نسخة مستقلة من Tanzil v1.1)',
+    mirrorSha256: existsSync(MIRROR) ? createHash('sha256').update(readFileSync(MIRROR, 'utf8')).digest('hex') : null,
+    note: 'الفرق الوحيد بين الملفين في بلوك حقوق التذييل (سنة الحقول والفراغات الطرفية)؛ آيات الـ6236 مطابقة بايت-ببايت',
+  },
+  stats: {
+    totalAyahs: ayahs.length,
+    totalSurahs: surahs.length,
+    waqfMarks: countOf(WAQF_MARK),
+    sajdahMarks: countOf(SAJDAH_MARK),
+    rubElHizb: countOf(RUB_EL_HIZB),
+  },
+  samples: Object.fromEntries(['1:1', '2:1', '2:255', '18:1', '36:83', '112:1', '114:1', '114:6'].map((r) => [r, byRef.get(r) ?? null])),
+  visualReview: { required: true, reviewer: null, note: 'تُملأ المراجعة البصرية يدويًا قبل اعتماد الحزمة (بوابة 05-5 بند 6)' },
+  checks: results,
+  result: fail === 0 ? 'PASSED' : 'FAILED',
+};
+const outPath = path.join(__dirname, '..', 'content', 'validation-report.json');
+writeFileSync(outPath, JSON.stringify(report, null, 2));
+console.log(`\nالبصمة SHA-256: ${checksum}`);
+console.log(`النتيجة: ${report.result} (${pass} نجح / ${fail} فشل) — التقرير في content/validation-report.json`);
+process.exit(fail === 0 ? 0 : 1);
+```
+
+#### `scripts/import-quran-qa.mjs`  ·  13.7KB
+
+```ts
+#!/usr/bin/env node
+/**
+ * خدمة استيراد التفسير — المرحلة 4 (بوابة اعتماد المحتوى 05).
+ *
+ * المصادر (وثيقة المصدر في content/QA-IMPORT-REPORT.md):
+ * - تفسير ابن كثير (quran.com resource_id=14، ar-tafsir-ibn-kathir):
+ *   إسماعيل بن كثير (ت 1373هـ) — نص كلاسيكي في الملك العام.
+ * - تفسير البغوي (معاني القرآن، quran.com resource_id=94، ar-tafsir-al-baghawi):
+ *   هبة الله بن موسى البغوي (ت 516هـ / 1125م) — نص كلاسيكي في الملك العام.
+ *
+ * ملاحظة اعتماد (مدرجة في التقرير): "تفسير الميسر" على المصدر (resource_id 16)
+ * اتُّضح أنه بيانات جزئية (نقص ~1500 آية) → رُفض واعتمد البغوي الكامل بدلًا منه.
+ *
+ * القواعد الصارمة (نفس بروتوكول حزمة المصحف):
+ * - لا يُنشئ نموذج لغوي أي نص في هذه الحزمة؛ النصوص تُنزَّل حرفيًا من المصدر.
+ * - تُحفظ الاستجابات الخام في content/refs/tafsir/ وتُوثَّق ببصمات SHA-256.
+ * - الفحص: الأعداد == حزمة المصحف المعتمدة (سورة بسورة)، والتطبيع (إزالة وسمات
+ *   HTML) يُتحقق منه عينات بمقابلة بايت-ببايت مع الخام (بعد إسقاط الوسوم والمسافات).
+ *
+ * المخرجات:
+ * - content/tafsir-data.json — حزمة التفسير (نص نظيف لكل آية × مصدرين).
+ * - content/refs/tafsir/manifest.sha256 — بصمات الملفات الخام.
+ * - content/QA-IMPORT-REPORT.md — سجل البوابة.
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const REFS = join(ROOT, 'content', 'refs', 'tafsir');
+const QURAN_DATA = join(ROOT, 'content', 'quran-data.json');
+const OUT_BUNDLE = join(ROOT, 'content', 'tafsir-data.json');
+const OUT_REPORT = join(ROOT, 'content', 'QA-IMPORT-REPORT.md');
+const OUT_MANIFEST = join(REFS, 'manifest.sha256');
+
+const SOURCES = [
+  {
+    id: 'ibnkathir',
+    resource_id: 14,
+    name: 'تفسير ابن كثير',
+    author: 'إسماعيل بن عمر بن كثير (ت 1373هـ / 1380م)',
+    note: 'نص كلاسيكي في الملك العام (ماضي أكثر من قرنَين على وفات مؤلفه)',
+  },
+  {
+    id: 'baghawi',
+    resource_id: 94,
+    name: 'تفسير البغوي (معاني القرآن)',
+    author: 'هبة الله بن موسى البغوي (ت 516هـ / 1125م)',
+    note: 'نص كلاسيكي في الملك العام (ماضي أكثر من قرنَين على وفات مؤلفه)',
+  },
+];
+
+const results = [];
+function check(name, ok, detail = '') {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`);
+  if (!ok) {
+    writeReport('failed');
+    process.exit(1);
+  }
+}
+
+/* ---------- أدوات ---------- */
+
+function sha256(buf) {
+  return createHash('sha256').update(buf).digest('hex');
+}
+
+/** إزالة وسمات HTML + فك الكيانات + تطبيع الفقرة (نص نظيف فقط — لا تغيير دلالي) */
+function htmlToPlain(html) {
+  let t = String(html ?? '');
+  t = t.replace(/\r\n?/g, '\n');
+  // فواصل الفقرات
+  t = t.replace(/<\/p\s*>/gi, '\n');
+  t = t.replace(/<br\s*\/?>/gi, '\n');
+  // بقية الوسوم
+  t = t.replace(/<[^>]+>/g, '');
+  // الكيانات
+  t = t
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  // BOM
+  t = t.replace(/^\uFEFF/, '');
+  // تطبيع كل فقرة: ضغطات متكررة → مسافة واحدة
+  const paras = t
+    .split('\n')
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length > 0);
+  return paras.join('\n');
+}
+
+/** للنسبة العربية: أحرف عربية ÷ إجمالي الرموز غير المسافة */
+function arabicRatio(s) {
+  const chars = [...s.replace(/\s+/g, '')];
+  if (chars.length === 0) return 0;
+  let arab = 0;
+  for (const c of chars) {
+    const cp = c.codePointAt(0);
+    if ((cp >= 0x0600 && cp <= 0x06ff) || (cp >= 0x0750 && cp <= 0x077f) || (cp >= 0x08a0 && cp <= 0x08ff) || (cp >= 0xfb50 && cp <= 0xfdff) || (cp >= 0xfe70 && cp <= 0xfeff)) {
+      arab++;
+    }
+  }
+  return arab / chars.length;
+}
+
+const stripAllWs = (s) => [...s.replace(/\s+/g, '')].join('');
+
+/* ---------- 0) قراءة حزمة المصحف المعتمدة (المعيار) ---------- */
+const quran = JSON.parse(readFileSync(QURAN_DATA, 'utf8'));
+const expectedCounts = quran.surahs.map((s) => s.ayahCount);
+const TOTAL_AYAHS = expectedCounts.reduce((a, b) => a + b, 0);
+check('حزمة المصحف معتمدة (114 سورة / 6236 آية)', quran.surahs.length === 114 && TOTAL_AYAHS === 6236, `سور=${quran.surahs.length} آيات=${TOTAL_AYAHS}`);
+
+/* ---------- 1) البصمات ---------- */
+const manifest = [];
+for (const src of SOURCES) {
+  const files = readdirSync(join(REFS, src.id)).filter((f) => f.endsWith('.json')).sort();
+  check(`${src.id}: 114 ملفًا خامًا`, files.length === 114, files.length + ' ملفات');
+  for (const f of files) {
+    const buf = readFileSync(join(REFS, src.id, f));
+    manifest.push(`${sha256(buf)}  ${src.id}/${f}`);
+  }
+}
+writeFileSync(OUT_MANIFEST, manifest.join('\n') + '\n');
+console.log(`• manifest: ${manifest.length} بصمات`);
+
+/* ---------- 2) التحليل + الأعداد ---------- */
+const tafsir = {}; // "s:a" -> { ibnkathir, baghawi }
+const perSourceStats = {};
+
+/** نواقص مصدر ibnkathir على quran.com — حُصرت عند الاستيراد 2026-10-12
+ *  (بيانات المصدر لا تغطي هذه الآيات؛ لا نختلق ما ليس موجودًا — 05) */
+const KNOWN_IBNKATHIR_GAPS = [
+  '5:97', '6:56', '11:47', '20:68', '20:79', '23:37', '26:104', '26:159', '26:164', '26:174',
+  '26:175', '26:178', '26:179', '26:180', '30:16', '33:47', '37:137', '38:70', '42:31', '43:27',
+  '47:28', '53:15', '54:35', '74:15', '74:32', '74:46', '75:28', '77:14', '77:18', '77:23',
+  '86:16',
+];
+
+for (const src of SOURCES) {
+  let total = 0;
+  let empty = 0;
+  const perSurah = new Array(115).fill(0);
+  const gaps = [];
+  for (let n = 1; n <= 114; n++) {
+    const raw = JSON.parse(readFileSync(join(REFS, src.id, `chapter-${n}.json`), 'utf8'));
+    const rows = raw.tafsirs;
+    if (!Array.isArray(rows)) {
+      check(`${src.id} س${n}: بنية`, false, 'tafsirs ليست قائمة');
+    }
+    const seen = new Set();
+    for (const row of rows) {
+      if (row.resource_id !== src.resource_id) {
+        check(`${src.id} س${n}: resource_id`, false, `المفروض ${src.resource_id} ووصل ${row.resource_id}`);
+      }
+      const [s, a] = String(row.verse_key).split(':').map(Number);
+      if (s !== n) {
+        check(`${src.id} س${n}: سورة المفاتيح`, false, `verse_key=${row.verse_key}`);
+      }
+      if (seen.has(a)) {
+        check(`${src.id} س${n}: تكرار آية`, false, `آية ${a} مرتين`);
+      }
+      seen.add(a);
+      perSurah[n]++;
+      const text = htmlToPlain(row.text);
+      if (text.length === 0) empty++;
+      tafsir[`${n}:${a}`] = tafsir[`${n}:${a}`] ?? {};
+      tafsir[`${n}:${a}`][src.id] = text;
+      total++;
+    }
+    const gapsHere = [];
+    for (let a = 1; a <= expectedCounts[n - 1]; a++) {
+      if (!seen.has(a)) gapsHere.push(`${n}:${a}`);
+    }
+    gaps.push(...gapsHere);
+  }
+  perSourceStats[src.id] = { total, empty };
+  check(`${src.id}: آيات فارغة`, empty === 0, `${empty} فارغة`);
+  if (src.id === 'baghawi') {
+    check('baghawi: مكتمل 6236 آية (سورة بسورة == حزمة المصحف)', gaps.length === 0 && total === 6236, `نواقص=${gaps.length}`);
+  } else {
+    check(
+      'ibnkathir: النواقص == القائمة الموثقة (31 آية — حُصرت ومُوثقت في التقرير)',
+      gaps.length === KNOWN_IBNKATHIR_GAPS.length && gaps.every((k) => KNOWN_IBNKATHIR_GAPS.includes(k)),
+      `${gaps.length} نقصًا`
+    );
+  }
+}
+check('baghawi: كل المفاتيح 6236 موجودة', Object.keys(tafsir).length === 6236 && Object.values(tafsir).every((v) => v.baghawi !== undefined), `${Object.keys(tafsir).length} مفتاح`);
+{
+  let ibnkMissing = 0;
+  for (const [key, vals] of Object.entries(tafsir)) {
+    if (vals.ibnkathir === undefined && !KNOWN_IBNKATHIR_GAPS.includes(key)) ibnkMissing++;
+  }
+  check('ibnkathir: كل المفاتيح ما عدا النواقص الموثقة موجودة', ibnkMissing === 0, `${ibnkMissing} مفقود غير موثق`);
+}
+
+/* ---------- 3) النسبة العربية + الطول ---------- */
+// ملاحظة: التفسيرات الكلاسيكية قصيرة بطبيعتها لفواتح السور القصيرة
+// (مثل «أي بشرهم.» أو اقتباس حرف الآية «"الم"») — رُوجعت عيّنة يدويًا
+// وتأكدت صحتها. الفحص هنا يصدّ الفراغ والبيانات الفاسدة فقط.
+let emptyTexts = 0;
+let shortTexts = 0;
+let lowArabic = 0;
+for (const [key, vals] of Object.entries(tafsir)) {
+  for (const [srcId, text] of Object.entries(vals)) {
+    if (text.trim().length === 0) emptyTexts++;
+    if (text.trim().length < 3) shortTexts++;
+    if (arabicRatio(text) < 0.4) lowArabic++;
+  }
+}
+check('لا نصوص فارغة/تالفة (فحص الفراغ + العربية)', emptyTexts === 0 && shortTexts === 0 && lowArabic === 0, `فارغة=${emptyTexts} قصور=${shortTexts} غير عربية=${lowArabic}`);
+
+/* ---------- 4) تطابق التطبيع مع الخام (عينات بايت-ببايت) ---------- */
+const SAMPLES = ['1:1', '2:255', '33:42', '67:1', '112:1', '114:6'];
+for (const key of SAMPLES) {
+  const [s, a] = key.split(':').map(Number);
+  for (const src of SOURCES) {
+    const raw = JSON.parse(readFileSync(join(REFS, src.id, `chapter-${s}.json`), 'utf8'));
+    const row = raw.tafsirs.find((r) => r.verse_key === key);
+    const strippedRaw = stripAllWs(htmlToPlain(row.text).replace(/\n/g, ''));
+    const strippedBundle = stripAllWs(tafsir[key][src.id].replace(/\n/g, ''));
+    check(`تطابق ${key} ${src.id} مع الخام (بعد إسقاط الوسوم)`, strippedRaw === strippedBundle, `طول=${strippedBundle.length}`);
+  }
+}
+
+/* ---------- 5) كتابة الحزمة ---------- */
+const bundle = {
+  generatedAt: new Date().toISOString(),
+  pipeline: 'scripts/import-quran-qa.mjs',
+  sources: SOURCES.map((s) => ({ ...s, language: 'ar', accessed: '2026-10-12', distribution: 'api.quran.com' })),
+  /** نواقص المصدر (آيات لا يغطيها المصدر — لا نختلق محتواها) */
+  gaps: { ibnkathir: KNOWN_IBNKATHIR_GAPS, baghawi: [] },
+  tafsir,
+};
+writeFileSync(OUT_BUNDLE, JSON.stringify(bundle));
+console.log(`• الحزمة: ${OUT_BUNDLE} (${(readFileSync(OUT_BUNDLE).length / 1024 / 1024).toFixed(1)} MB)`);
+
+/* ---------- 6) التقرير ---------- */
+function writeReport(status) {
+  const pass = results.filter((r) => r.ok).length;
+  const fail = results.length - pass;
+  const lines = [
+    '# سجل اعتماد حزمة التفسير (المرحلة 4)',
+    '',
+    `**التاريخ:** 2026-10-12 — **النتيجة:** ${status === 'passed' ? 'نجح ✅' : 'فشل ❌'} (${pass} نجاح / ${fail} فشل)`,
+    '',
+    '## المصادر',
+    '',
+    '| المصدر | الوصف | التوزيع |',
+    '|---|---|---|',
+    '| تفسير ابن كثير (ar-tafsir-ibn-kathir، resource_id 14) | إسماعيل بن كثير (ت 1373هـ) — نص في الملك العام | api.quran.com (نُزِّل 2026-10-12) |',
+    '| تفسير البغوي — معاني القرآن (ar-tafsir-al-baghawi، resource_id 94) | هبة الله بن موسى البغوي (ت 516هـ) — نص في الملك العام | api.quran.com (نُزِّل 2026-10-12) |',
+    '',
+    '## النواقص الموثقة',
+    `- ibnkathir: ${KNOWN_IBNKATHIR_GAPS.length} آية لا تغطيها بيانات المصدر (الواجهة تعرض «لا يتوفر» للمستخدم،` +
+      ` والبغوي يغطيها كاملًا): ${KNOWN_IBNKATHIR_GAPS.join(', ')}`,
+    '- baghawi: مكتمل 6236/6236.',
+    '',
+    '## قرارات الاعتماد',
+    '- **رُفض "تفسير الميسر" (resource_id 16)**: اتُّضح أن بياناته على المصدر جزئية',
+    '  (نقص نحو 1500 آية، منها سور كاملة مثل 80–83) → لا يصلح مصدرًا معتمدًا كاملًا.',
+    '- اختُبر قبل الاعتماد: البغوي (94) مكتمل سورة بسورة مقابل حزمة المصحف (6236 آية).',
+    '',
+    '## بروتوكول',
+    '- النصوص نزلت حرفيًا من واجهة المصدر (لا توليد بنماذج لغوية إطلاقًا).',
+    '- الاستجابات الخام محفوظة في `content/refs/tafsir/` وبصماتها في `manifest.sha256`.',
+    '- التطبيع الوحيد: إزالة وسوم HTML (p/span) وفك الكيانات وضغط المسافات — لا تعديل دلالي.',
+    '',
+    '## الفحوصات',
+    '',
+    ...results.map((r) => `- ${r.ok ? '✅' : '❌'} ${r.name}${r.detail ? ` (${r.detail})` : ''}`),
+    '',
+    `**إجمالي الفحوصات: ${results.length} — نجاح ${pass} / فشل ${fail}**`,
+    '',
+  ];
+  writeFileSync(OUT_REPORT, lines.join('\n'));
+}
+
+writeReport('passed');
+console.log('تم الاستيراد بنجاح ✅');
+```
+
+#### `scripts/import-adhkar.mjs`  ·  12.7KB
+
+```ts
+/**
+ * استيراد حزمة الأذكار (المرحلة 5) — بوابة 05.
+ *
+ * المصدر الرئيسي: osamayy/azkar-db @ fbdfa017782c (نص حصن المسلم — ملكية عامة،
+ * المخاطرة الرخصية موثقة في manifest.json).
+ * التحقق المستقل: Seen-Arabic (MIT) لأذكار الصباح + حزمة Tanzil المعتمدة لكل
+ * نص قرآني داخل الأذكار.
+ *
+ * لا يُولَّد أي نص هنا — فقط: تنظيف هيكلي + تحقق + تجميع.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+
+const ROOT = path.resolve(import.meta.dirname, '..');
+const refDir = path.join(ROOT, 'content', 'refs', 'adhkar');
+const quran = JSON.parse(readFileSync(path.join(ROOT, 'content', 'quran-data.json'), 'utf8'));
+
+const azkar = JSON.parse(readFileSync(path.join(refDir, 'azkar_obj.json'), 'utf8'));
+const seenMorning = JSON.parse(readFileSync(path.join(refDir, 'morning_seen_ar.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(path.join(refDir, 'manifest.json'), 'utf8'));
+
+let pass = 0, fail = 0;
+const failures = [];
+function check(name, ok, detail = '') {
+  if (ok) { pass++; console.log(`  ✓ ${name}`); }
+  else { fail++; failures.push(name); console.log(`  ✗ ${name}${detail ? ' — ' + detail : ''}`); }
+}
+
+// ---------- أدوات تطبيع ----------
+function orthoNorm(s) {
+  s = String(s);
+  // المَدّ (U+0670): بعد التاتيل/الواو/الياء = بدل عن الألف (→ا)، وبسواها = مدّ صوتي (يُحذف)
+  let out = '';
+  for (const c of s) {
+    if (c === '\u0670') {
+      const p = out[out.length - 1];
+      if (p === '\u0640' || p === '\u0648' || p === '\u064A') out += 'ا';
+    } else out += c;
+  }
+  s = out.replace(/[\u064B-\u065F\u0653\u06D6-\u06ED\u0640]/g, '');
+  s = s.replace(/[أإآٱ]/g, 'ا').replace(/[ى]/g, 'ي').replace(/ة/g, 'ه').replace(/[ءؤئ]/g, '');
+  s = s.replace(/[,،.!?؟؛;:()[\]«»\-\u2329\u232A]/g, '');
+  return s.replace(/\s+/g, '');
+}
+// للمقارنة فقط: حذف الألف (أكثر حرف تقلبًا بين الرسمين) — العرض لا يتأثر
+function noAlif(s) {
+  return String(s).replace(/[ا\u0670]/g, '');
+}
+function stripArabicDiacritics(s) {
+  return String(s).replace(/[\u064B-\u065F\u0670\u0653\u0640]/g, '');
+}
+function cleanZekr(z) {
+  let s = String(z).replace(/\r\n?/g, '\n').trim();
+  // أقواس غير متوازنة حول النص (حرفية المصدر) — تُحذف إذا أحاطت بالنص كاملًا
+  const open = (s.match(/\(/g) || []).length;
+  const close = (s.match(/\)/g) || []).length;
+  if (open === close + 1 && s.startsWith('(')) s = s.slice(1).trim();
+  if (close === open + 1 && s.endsWith(')')) s = s.slice(0, -1).trim();
+  s = s.replace(/\n{2,}/g, '\n').replace(/[ \t]+\n/g, '\n');
+  return s;
+}
+
+// ---------- خريطة السور من الحزمة المعتمدة ----------
+const surahByName = new Map();
+for (const s of quran.surahs) surahByName.set(orthoNorm(s.nameArabic), s.number);
+const ayahText = new Map();
+const ayahSearch = new Map();
+for (const a of quran.ayahs) {
+  ayahText.set(`${a.surah}:${a.ayah}`, a.text);
+  if (a.search) ayahSearch.set(`${a.surah}:${a.ayah}`, a.search);
+}
+
+console.log('== [1] بنية المصدر ==');
+check('العناصر = 345', azkar.length === 345, `الموجود ${azkar.length}`);
+check('كل عنصر: category + zekr غير فارغة', azkar.every(a => (a.category || '').trim() && (a.zekr || '').trim()));
+check('كل zekr نص عربي سليم (≥5 أحرف، بلا رموز تحكم)',
+  azkar.every(a => {
+    const t = (a.zekr || '').replace(/\r/g, '');
+    return t.length >= 5 && /[ء-ي]/.test(t) && !/[\u0000-\u0008\u000B-\u001F\u007F]/.test(t);
+  }));
+const cats = [...new Set(azkar.map(a => a.category.trim()))];
+check('الفئات = 135 فريدة', cats.length === 135, `الموجود ${cats.length}`);
+check('الفئات الأساسية متوفرة', ['أذكار الصباح', 'أذكار المساء', 'أذكار النوم', 'دعاء الاستفتاح'].every(c => cats.includes(c)));
+const countStats = azkar.filter(a => Number.isInteger(a.count)).length;
+console.log(`  (count رقمي في المصدر: ${countStats}/345 — الباقي = 1 حسب القاعدة الموثقة)`);
+
+console.log('== [2] التحقق القرآني (نص الآيات == Tanzil المعتمد) ==');
+const SURAH_RE = /سورة\s+([ء-ي]{2,20})(?:\s+(\d{1,3}))?/;
+let quranItems = 0, quranMatched = 0, quranMissed = 0;
+const quranMap = [];
+for (const a of azkar) {
+  const ref = a.reference || '';
+  const m = ref.match(SURAH_RE);
+  if (!m) continue;
+  const name = m[1].replace(/^ال/, '').replace(/^السورة/, '');
+  const n = surahByName.get(orthoNorm(m[1])) || surahByName.get(orthoNorm('سورة ' + m[1]));
+  if (!n) continue;
+  quranItems++;
+  const ayahAt = (k) => {
+    const rec = ayahSearch.get(`${n}:${k}`) || ayahText.get(`${n}:${k}`) || '';
+    return orthoNorm(rec);
+  };
+  let expected;
+  if (m[2]) {
+    const parts = m[2].split(/\s*[-–]\s*/).map(x => x.trim());
+    expected = parts.map(p => ayahAt(parseInt(p))).join('');
+  } else {
+    let k = 1;
+    while (ayahSearch.has(`${n}:${k}`) || ayahText.has(`${n}:${k}`)) { expected = (expected || '') + ayahAt(k); k++; }
+  }
+  const zekrN = noAlif(orthoNorm(a.zekr));
+  const ok = expected.length > 20 && zekrN.includes(noAlif(expected));
+  if (ok) quranMatched++; else quranMissed++;
+  quranMap.push({ ref: a.reference, surah: n, ok });
+}
+check(`آيات القرآن داخل الأذكار متطابقة مع Tanzil (${quranMatched}/${quranItems})`,
+  quranItems >= 5 && quranMissed === 0,
+  quranMissed ? JSON.stringify(quranMap.filter(q => !q.ok).slice(0, 5)) : '');
+
+console.log('== [3] التحقق المستقل: مصدر MIT (صباح + مساء ممزوجان) ==');
+const allNorm = azkar.map(a => noAlif(orthoNorm(a.zekr)));
+let seenMatched = 0, seenCountChecked = 0, seenCountOk = 0;
+const seenMissing = [];
+const countDiscrepancies = [];
+for (const sm of seenMorning) {
+  const core = noAlif(orthoNorm(stripArabicDiacritics(sm.content).replace(/\n/g, ' ')));
+  const frag = core.slice(0, 30);
+  let hitIdx = -1;
+  if (core.length > 25) {
+    hitIdx = allNorm.findIndex(m => m.includes(frag));
+    if (hitIdx < 0) hitIdx = allNorm.findIndex(m => m.includes(core.slice(0, 15)));
+  }
+  if (hitIdx >= 0) {
+    seenMatched++;
+    const hit = azkar[hitIdx];
+    if (hit.category === 'أذكار الصباح' || hit.category === 'أذكار المساء') {
+      seenCountChecked++;
+      const oc = Number.isInteger(hit.count) ? hit.count : 1;
+      if (oc === sm.count) seenCountOk++;
+      else countDiscrepancies.push({ t: sm.content.slice(0, 25).replace(/\n/g, ' '), cat: hit.category, mit: sm.count, db: oc });
+    }
+  } else {
+    seenMissing.push({ t: sm.content.slice(0, 35).replace(/\n/g, ' '), count: sm.count });
+  }
+}
+check(`نصوص MIT (صباح+مساء) موجودة في الحزمة (${seenMatched}/${seenMorning.length} ≥ 85٪)`,
+  seenMatched >= Math.ceil(seenMorning.length * 0.85), JSON.stringify(seenMissing.slice(0, 3)));
+if (seenMissing.length > 0)
+  console.log(`  موثق: ${seenMissing.length} عنصرًا بمصاغة/رواية مختلفة أو غير موجود (تفصيل في التقرير): ${JSON.stringify(seenMissing.map(m => m.t.slice(0, 30)))}`);
+if (countDiscrepancies.length > 0)
+  console.log(`  تحذير موثق: اختلاف تكرارات بين المصدرين (${countDiscrepancies.length}): ${JSON.stringify(countDiscrepancies)}`);
+
+console.log('== [4] تجميع الحزمة ==');
+const catIndex = new Map();
+const categories = [];
+for (const c of cats) {
+  catIndex.set(c, categories.length);
+  categories.push({ id: categories.length + 1, name: c });
+}
+const items = [];
+for (let i = 0; i < azkar.length; i++) {
+  const a = azkar[i];
+  const cat = a.category.trim();
+  const seq = items.filter(x => x.categoryId === catIndex.get(cat) + 1).length + 1;
+  const ref = (a.reference || '').trim();
+  const rm = ref.match(SURAH_RE);
+  let quranRef = null;
+  if (rm) {
+    const n = surahByName.get(orthoNorm(rm[1])) || surahByName.get(orthoNorm('سورة ' + rm[1]));
+    if (n) {
+      quranRef = rm[2] ? `${n}:${parseInt(rm[2])}` : `${n}:1`; // السورة كاملة: أول آية = علامة "سورة كاملة"
+      if (!rm[2]) quranRef = `${n}:*`;
+    }
+  }
+  items.push({
+    id: `${catIndex.get(cat) + 1}-${seq}`,
+    categoryId: catIndex.get(cat) + 1,
+    category: cat,
+    zekr: cleanZekr(a.zekr),
+    count: Number.isInteger(a.count) && a.count > 0 ? a.count : 1,
+    reference: ref || null,
+    description: (a.description || '').trim() || null,
+    quranRef,
+  });
+}
+check('المخرجات = 345 عنصرًا', items.length === 345);
+check('كل عنصر: id فريد + count ≥ 1',
+  new Set(items.map(i => i.id)).size === items.length && items.every(i => i.count >= 1));
+const withQuran = items.filter(i => i.quranRef);
+console.log(`  (عناصر قرآنية: ${withQuran.length} — تُعرض من Tanzil في التطبيق)`);
+
+const bundle = {
+  manifest: {
+    name: 'حصن المسلم — أذكار وأدعية',
+    version: 'adhkar-1.0',
+    importedAt: manifest.generated,
+    sources: manifest.sources,
+    rules: manifest.rules,
+    contentLicense: 'نص ديني في الملكية العامة (كتاب حصن المسلم — توزيع حر). المستوديان بلا رخصة صريحة: مخاطرة موثقة في content/refs/adhkar/manifest.json.',
+    sha256Source: manifest.sources[0].sha256,
+  },
+  categories,
+  items,
+};
+const outPath = path.join(ROOT, 'content', 'adhkar-data.json');
+writeFileSync(outPath, JSON.stringify(bundle, null, 1), 'utf8');
+const outSha = createHash('sha256').update(readFileSync(outPath)).digest('hex');
+console.log(`  الحزمة: content/adhkar-data.json — ${items.length} ذكرًا / ${categories.length} فئة — sha256 ${outSha.slice(0, 16)}…`);
+
+console.log('== [5] إعادة الفتح والتحقق ==');
+const back = JSON.parse(readFileSync(outPath, 'utf8'));
+check('إعادة الفتح: نفس الأعداد', back.items.length === 345 && back.categories.length === 135);
+check('إعادة الفحص: لا نصوص فارغة', back.items.every(i => i.zekr.length >= 5));
+
+console.log(`\nالنتيجة: ${pass} نجح / ${fail} فشل`);
+if (fail > 0) {
+  console.log('الفشل:', failures.join(' | '));
+  process.exit(1);
+}
+writeFileSync(path.join(ROOT, 'content', 'ADHKAR-IMPORT-REPORT.md'),
+  `# تقرير استيراد الأذكار (المرحلة 5) — بوابة 05\n\n**النتيجة: ${pass} نجح / ${fail} فشل** (${manifest.generated})\n\n## المصادر\n| المصدر | الدور | النسخة | الرخصة |\n|---|---|---|---|\n| osamayy/azkar-db (azkar_obj.json) | النص الكامل: 345 ذكرًا / 135 فئة | commit fbdfa017782c | بلا رخصة صريحة — نص ديني عام (مخاطرة موثقة) |\n| Seen-Arabic (morning_ar.json) | تحقق مستقل: أذكار الصباح (34) | commit 29d7623fede5 | MIT |\n| content/quran-data.json (Tanzil Uthmani v1.1) | كل نص قرآني داخل الأذكار | معتمدة بالمرحلة 2 | ملكية عامة + بصمة |\n\n## الفحوص\n- البنية: 345 عنصرًا، 135 فئة، نصوص عربية سليمة، بلا رموز تحكم.
+- اختلافات التكرار بين المصدرين (${countDiscrepancies.length}): ${countDiscrepancies.map(d => `«${d.t}» (MIT: ${d.mit} / الحزمة: ${d.db})`).join('، ') || 'لا شيء'} — يُعرض عدّاد المصدر المعتمد (osamayy).
+- عناصر MIT غير المطابقة نصًا (${seenMissing.length}): ${seenMissing.map(m => `«${m.t}»`).join('، ') || 'لا شيء'} — فروق مصاغة/رواية موثقة بين المصدرين (نفس الذكر بصيغة أخرى) أو غياب من المصدر المعتمد؛ لا تُعد خللًا في النصوص المطابقة (${seenMatched}/${seenMorning.length}).\n- القرآن: ${quranMatched}/${quranItems} نصًا قرآنيًا متطابق مع Tanzil بعد تطبيع الرسم (العثماني/الاعلمي).\n- الصباح (تحقق MIT): ${seenMatched}/${seenMorning.length} نصًا متطابقًا، التكرارات ${seenCountOk}/${seenMatched} متطابقة.\n- قاعدة التكرار: القيمة الرقمية إن وُجدت في المصدر، وإلا 1 (يُقال مرة).\n\n## قاعدة العرض في التطبيق\n- العنصر ذو quranRef يُعرض نصه من حزمة Tanzil المعتمدة (اتساق مع المصحف) — لا من هذا المصدر.\n- سائر الأذكار تُعرض كنص المصدر (فصحى مشكّلة) دون أي توليد أو تعديل.\n`, 'utf8');
+console.log('التقرير: content/ADHKAR-IMPORT-REPORT.md');
+```
+
+#### `scripts/serve-preview.mjs`  ·  1.7KB
+
+```ts
+#!/usr/bin/env node
+/**
+ * خادم معاينة ثابت لملفات dist/ (معاينة الويب فقط).
+ * الاستخدام: node scripts/serve-preview.mjs  (المنفذ الافتراضي 8081 أو عبر PORT)
+ */
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(__dirname, '..', 'dist');
+const port = Number(process.env.PORT ?? 8081);
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ttf': 'font/ttf',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+createServer(async (req, res) => {
+  try {
+    let urlPath = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    if (urlPath === '/') urlPath = '/index.html';
+    const filePath = path.join(root, path.normalize(urlPath));
+    if (!filePath.startsWith(root)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+    const data = await readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] ?? 'application/octet-stream',
+      'Cache-Control': 'no-cache',
+    });
+    res.end(data);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+  }
+}).listen(port, '0.0.0.0', () => {
+  console.log(`[preview] serving ${root} on http://0.0.0.0:${port}`);
+});
+```
+
+### 8.9) docs (توثيق المشروع)
+
+#### `docs/CONVENTIONS.md`  ·  2.3KB
+
+```md
+# قواعد تسمية المشروع — رفيق القرآن الكريم
+# المرجع: مخرجات المرحلة 0 (06-IMPLEMENTATION-PLAN.md)
+
+## اللغة
+- **الكود والتعليقات والواجهات الداخلية**: عربي.
+- **أسماء الملفات والمعرّفات والمتغيرات**: إنجليزي (lowercase / camelCase).
+- **نصوص المحتوى الديني**: كما وردت في المصدر المعتمد، دون أي تعديل أو إعادة صياغة.
+
+## الملفات
+- مكوّنات React: PascalCase.tsx — `MushafScreen.tsx`
+- ملفات المنطق والبيانات: kebab-case أو camelCase.ts — `bookmark-repository.ts`
+- ملفات الاختبارات: `*.test.ts` داخل `tests/`
+- المستندات: UPPERCASE-KEBAB.md — `CONTENT-MANIFEST.md`
+
+## المتغيرات والدوال
+- دوال: camelCase فعل + اسم — `openAppRealm`, `saveBookmark`
+- ثوابت: UPPER_SNAKE_CASE — `USER_SCHEMA_VERSION`, `APP_SETTINGS_ID`
+- أنواع TypeScript: PascalCase — `AppSettings`, `GoalUnit`
+
+## قاعدة بيانات Realm
+- أسماء الكيانات: PascalCase مطابقة لمسميات 03-REALM-DATABASE-SCHEMA.md
+- حقول: camelCase مطابقة للمخطط المنطقي
+- معرفات: `string` فريد لكل سجل؛ للآيات يُستخدم `س:أ` بصيغة المصدر عند الربط
+- رفع `USER_SCHEMA_VERSION` يتطلب دالة ترحيل صريحة واختبارًا موثقًا
+
+## البنية
+| المجلد | المحتوى |
+|---|---|
+| `src/app` | نقطة الدخول، الإعدادات العامة، التنقل |
+| `src/features/*` | وحدات: quran, tafsir, words, adhkar, duas, audio, plans, search, library |
+| `src/database/realm` | المخططات والتهيئة والترحيل |
+| `src/repositories` | واجهات القراءة/الكتابة (طبقة البيانات) |
+| `src/services` | الاستيراد، التحقق، التنزيل، النسخ الاحتياطي |
+| `src/design-system` | الألوان والخطوط والمكونات المشتركة |
+| `src/localization` | العربية وRTL |
+| `tests` | الاختبارات |
+| `content` | حزم المحتوى المرخّصة + `CONTENT-MANIFEST.md` |
+| `docs` | الوثائق: القيود، الترخيص، أدلة البناء |
+```
+
+#### `docs/FONTS.md`  ·  1.6KB
+
+```md
+# الخطوط المضمّنة — التراخيص والتحقق
+# المرجع: 04-UX-UI-SPEC.md (القسم 3) — لا يُفترض خط الواجهة مناسبًا للرسم العثماني
+
+## الخطوط
+| الخط | الاستخدام | المصدر | الترخيص |
+|---|---|---|---|
+| Tajawal (Regular/Medium/Bold) | واجهة التطبيق | google/fonts — Boutros International (2017) | SIL Open Font License 1.1 |
+| Amiri Quran | نص المصحف (الرسم العثماني) | aliftype/amiri — Amiri Project (Khaled Hosny) | SIL Open Font License 1.1 |
+
+## الملفات
+- `assets/fonts/Tajawal-Regular.ttf` (60,364 بايت)
+- `assets/fonts/Tajawal-Medium.ttf` (62,280 بايت)
+- `assets/fonts/Tajawal-Bold.ttf` (59,988 بايت)
+- `assets/fonts/AmiriQuran.ttf` (167,976 بايت)
+
+## التحقق
+- الملفات صالحة TrueType (فُحص رأس الملف وتوقيع «TrueType Font data»).
+- Amiri Quran مصمم خصيصًا للرسم العثماني (حرف الالف الواسلة ٱ، التطويل، التشكيل المزدوج) — الاختبار البصري الكامل للحروف المتصلة والتشكيل وعلامات الوقف يُنفَّذ على المنصات المستهدفة (متطلب 04-3) ويُسجَّل في اختبارات المصحف (المرحلة 2) واختبارات UX (المرحلة 7).
+
+## الالتزامات
+- تبقى ملفات الخطوط مع التطبيق الموزَّع (المشروع يعمل دون اتصال).
+- يُحفظ نص الترخيص OFL في ملفات الخطوط الأصلية؛ يُعاد النشر تحت شروط OFL 1.1 نفسها.
+```
+
+#### `docs/SCREEN-MAP.md`  ·  7.8KB
+
+```md
+# خريطة الشاشات — رفيق القرآن الكريم
+# المرجع: 01-PRODUCT-SPEC.md (القسم 6) و 04-UX-UI-SPEC.md
+# الحالة: المرحلة 5 — الأذكار مكتملة ومعاينة
+
+## الهيكل العام
+```
+App (تسلسل الإقلاع: قاعدة البيانات ← Metadata المحتوى ← جلسات مفتوحة ← الخطوط ← السمة)
+└── RootNavigator — شريط سفلي (5 تبويبات)
+    ├── الرئيسية ............ HomeScreen        [الورد الفعلي + تابع قراءتك]
+    ├── المصحف .............. MushafStack (Stack)   [المرحلة 2]
+    │   ├── فهرس السور + البحث MushafHomeScreen
+    │   └── السورة .......... SurahScreen      [قارئ + أدوات الآية (بما فيها التفسير) + جلسة قراءة + 4 لوحات]
+    ├── الأذكار ............. AdhkarScreen       [135 فئة + 345 ذكرًا + عدّادات Realm]
+    ├── الاستماع ............ AudioScreen        [المحتوى: المرحلة 6]
+    └── مكتبتي .............. LibraryStack (Stack)
+        ├── العلامات المرجعية  BookmarksScreen   [تسمية + حذف]
+        ├── المفضلة .......... FavoritesScreen   [نص الآية الفعلي + حذف]
+        ├── الملاحظات ........ NotesScreen       [تصفية + حذف]
+        ├── سجل القراءة ...... SessionsScreen    [اليوم + الجلسات]
+        ├── الخطط ............ PlansScreen       [المرحلتان 3 و6]
+        ├── التنزيلات ........ DownloadsScreen   [المرحلة 6]
+        ├── الإعدادات ........ SettingsScreen    [مظهر/خط/ورد]
+        └── حول التطبيق ...... AboutScreen       [حقوق + مصادر المحتوى]
+```
+
+## تفاصيل الشاشات
+
+### الرئيسية (مرحلة 1 + مرحلة 3)
+1. تحية بسيطة.
+2. بطاقة «تابع قراءتك» — آخر موضع **حقيقي** (اسم السورة + الآية + تاريخ) — قابلة للضغط.
+3. **الورد اليومي — `DailyProgress` الفعلي**: `X / Y آية` من الجلسات المنتهية اليوم
+   (قاعدة R5) + الهدف من الإعدادات. صفر قبل أول جلسة — لا أرقام زينة.
+4. اختصارات فعّالة: المصحف، الأذكار، الاستماع.
+> آية اليوم وأذكار اليوم والخطة تُضاف في مراحلها (5، 6) — لا عناصر وهمية.
+
+### المصحف (المرحلة 2 + جلسة القراءة من المرحلة 3)
+- **MushafHomeScreen**: فهرس 114 سورة + شريط بحث (آيات بأسماء السور/الترحيل).
+- **SurahScreen**: عرض آيات السورة بالرسم العثماني (Amiri Quran × fontScale) مع
+  رقم الآية وعلامة السجدة؛ شريط معلومات + السابقة/التالية + «الانتقال إلى آية».
+- اختيار آية (لمس أو انتقال) يفتح شريط الأدوات: علامة / مفضلة / ملاحظة (مودال) / نسخ / مشاركة.
+- **قاعدة «آخر موضع»**: يُحدَّث عند فتح السورة (من الآية المستهدفة/الأولى) وعلى الآية المختارة
+  → `AppSettings` → «تابع قراءتك» (تُحدَّث عند كل تركيز للتبويب) وتفتح مباشرة على الموضع.
+- **جلسة القراءة (المرحلة 3)**: كل آية مختارة (R1) تُسجَّل في جلسة مفتوحة
+  (`reading-session-repository` R1–R6)؛ مغادرة تبويب المصحف تُنهي الجلسة؛
+  «الإقلاع بعد انقطاع» يُنهي ما تبقّى عبر `closeOpenSessions` مرة واحدة.
+
+### الأذكار (المرحلة 5 مكتملة)
+- **135 فئة / 345 ذكرًا** من «حصن المسلم» (حزمة معتمدة — بوابة 05) + بحث في الفئات
+  والأذكار.
+- **عدّاد لكل ذكر**: لمس = زيادة، سقف من المصدر (القيمة إن وُجدت وإلا 1 — قاعدة موثقة)
+  + علامة «مكتمل» + تصفير العنصر/الفئة + ملخص الفئة اليوم (X/Y).
+- **النصوص القرآنية داخل الأذكار تُعرض من Tanzil المعتمدة** (اتساق المصحف)؛
+  سائر الأذكار نص المصدر (فصحى مشكّلة) بلا تعديل.
+- بيانات التقدّم في `DhikrProgress` (سجل يومي لكل ذكر — **مستقلة عن جلسات القراءة**).
+
+### الاستماع (المرحلة 6)
+- اختيار القارئ والتلاوة + مشغل + آخر موضع استماع.
+
+### مكتبتي (المرحلة 3 مكتملة)
+- **العلامات المرجعية**: قائمة حقيقية من Realm + **تسمية** (مودال — `updateLabel`)
+  + حذف. الاسم المعرّف يُعرض بدل الوصف الافتراضي.
+- **المفضلة**: تعرض **نص الآية الفعلي** من الحزمة (خط عثماني) + اسم السورة + التاريخ + حذف.
+- **الملاحظات**: **تصفية بحث فوري** (عنوان/نص/وسم) + حالة فارغة + حذف +
+  ملاحظات مرتبطة بآية (من شاشة القارئ).
+- **سجل القراءة**: ملخص اليوم (الورد/الهدف + بيان قاعدة R5) + قائمة الجلسات المنتهية
+  (المدى «من… إلى»، المدة بالدقائق، التاريخ).
+- الإعدادات: المظهر (فاتح/داكن/دافئ)، حجم الخط (75٪–150٪)، الورد اليومي (وحدة+قيمة).
+- حول التطبيق: حقوق المطوّر + مصادر المحتوى والتراخيص + الخصوصية.
+- **مبدأ عدم التكرار (بوابة 06)**: كل قوائم المكتبى تُقَرن بمفتاح فريد من الحزمة
+  (surah:ayah) — إعادة فتح الشاشة لا تضاعف السجلات.
+
+### إضافات المرحلة 4 (التفسير وعرض الصفحة)
+- **SurahScreen — التفسير**: زر «التفسير» في شريط أدوات الآية → مودال:
+  - اختيار المصدر (ابن كثير/البغوي) + نص التفسير **الفقيقي** من `tafsir-data.json`
+    (quran.com v4 — ترخيص CC-BY-SA — sha256 موثق).
+  - حالة النقص الموثق (31 آية في ابن كثير) → «لا يتوفر — الفجوة موثقة في المصدر»
+    (`content/QA-IMPORT-REPORT.md`) — بلا اختلاق.
+  - **معاني الكلمات**: غير مفعّل حتى يعتمد المستخدم مصدرًا موثوقًا — لا زر وهمي.
+- **SurahScreen — الرسم العثماني**: شارة «الرسم العثماني» في الرأس + بطاقة السورة في
+  الفهرس (النص = Tanzil Uthmani v1.1 المعتمدة بايت-ببايت).
+- **SurahScreen — صفحة المصحف المريحة**: 4 لوحات (يتبع السمة/رَقّ كريمي/ليل/غابة)
+  من الإعدادات (`mushafBg` — مخطط Realm 2) — تُطبَّق فورًا عند تركيز الشاشة.
+- **الإعدادات — «صفحة المصحف»**: بطاقة بأربعة خيارات (الافتراضي: يتبع السمة).
+
+## RTL وإمكانية الوصول
+- `I18nManager.forceRTL(true)` في index.ts — RTL على مستوى التخطيط (React Navigation يقلب الأشرطة تلقائيًا).
+- أهداف لمس ≥ 44pt، تسميات قارئ شاشة (accessibilityRole/Label) على الأزرار، تباين يُراجع وفق WCAG على الجهاز.
+- تكبير النص عبر fontScale دون قص: النصوص numberOfLines حيث يناسب والبطاقات مرنة.
+```
+
+#### `docs/TECHNICAL-CONSTRAINTS.md`  ·  6.4KB
+
+```md
+# القيود التقنية الموثقة
+# المرجع: المرحلة 0 — «توثيق أي قيود تقنية قبل المتابعة» (06-IMPLEMENTATION-PLAN.md)
+# تاريخ التوثيق: 2026-10-12
+
+## 1. البيئة التنفيذية الحالية (سنبورك التنفيذ)
+| العنصر | الحالة | الأثر |
+|---|---|---|
+| Node.js | v20.20.2 ✓ | يحقق الحد الأدنى لـ RN 0.85+ (≥ 20.19.4) |
+| Android SDK | **غير موجود** | لا يمكن بناء APK داخل هذه البيئة |
+| جهاز/محاكي Android | **غير متوفر** | لا يمكن تشغيل التطبيق على الجهاز هنا |
+| Java | 11 فقط | أحدث AGP يتطلب Java 17 — بناء Gradle محليًا غير ممكن |
+| RAM | 1.9 GB | غير كافٍ لبناء React Native محليًا حتى مع توافر SDK |
+
+**النتيجة**: بوابة «تشغيل المشروع الفارغ على منصة مستهدفة» تُنفَّذ جزئيًا:
+- ✅ توليد المشروع الأصلي Android كاملًا عبر `npx expo prebuild --platform android` (Gradle + namespace صحيح).
+- ✅ توثيق autolinking الخاص بـ Realm (react-native.config.js + prebuilds .so لكل ABI: arm64-v8a, armeabi-v7a, x86, x86_64).
+- ✅ إثبات طبقة البيانات: فتح Realm محليًا + كتابة + قراءة + استعادة بعد الإغلاق (24/24 فحصًا) عبر نفس الحزمة `realm@20.2.0` المستخدمة على React Native.
+- ⏳ **المتبقّي على جهاز حقيقي/عبر EAS**: إقلاع التطبيق على Android (Development Build) والتحقق من فتح Realm داخل العملية الأصلية — يُنفَّذ لدى المطوّر أو عبر EAS Build (يتطلب حساب EAS/مفتاح توقيع).
+
+## 2. Expo Go غير قابل للاستخدام (متطلب المواصفات 02-1)
+- `realm@20.2.0` وحدة أصلية (native module) → **Expo Go لا يدعم الوحدات الأصلية المخصصة**.
+- المسار المعتمد: **Development Build** (`expo-dev-client` / `expo run:android`) أو EAS Build. هذا متوافق مع المواصفات التي تنص صراحة: «لا تفترض أن المشروع سيعمل داخل Expo Go».
+- الحزم الأصلية المطلوبة إضافية: `expo-dev-client` (سيُضاف عند أول تشغيل تجريبي حقيقي — المرحلة 0/1).
+
+## 3. فروق واجهة Realm JS v20 عن التوثيق الأقدم (تحقق فعلي)
+وُجدت بفحص حزمة `realm@20.2.0` الموزعة (dist/*.d.ts) واختبار تشغيلي:
+| العنصر | v20 الفعلي | التوثيق الأقدم (12.x) |
+|---|---|---|
+| دالة الترحيل | `onMigration` | `migration` |
+| أول تشغيل | لا يوجد `onFirstLaunch` (يُكتشف عبر `Realm.exists(path)` قبل الفتح) | `onFirstLaunch` |
+| الجلب بمفتاح أساسي | `objects(type).filtered('id = $0', key)` | `object(type, key)` |
+| حالة الفتح | `isClosed` | `isOpen` |
+| أسماء الأنواع الأساسية | `bool, int, double, float, string, data, date, mixed, uuid, ...` — **`number` و`boolean` غير مقبولة** | `number/boolean` مقبولة اختصارًا |
+| المصفوفات | `string[]` (قائمة) | متوافق |
+
+**الأثر**: كل كود قاعدة البيانات في هذا المشروع مكتوب وفق واجهة v20 الفعلي، والاختبار `tests/realm-stage0.test.ts` يمر عليها.
+
+## 4. ملاحظات تشغيلية
+- **عملية Node**: addon الخاص بـ Realm يُبقي عملية Node حية حتى بعد `close()` — الاختبارات تُنهى بـ `process.exit()` صريحًا (مُوثّق في ملف الاختبار).
+- **TypeScript**: قالب Expo SDK 57 يأتي بـ TypeScript 6.0.3؛ إعدادات الاختبار تستخدم `module: node16` (`moduleResolution: node` مرفوض كتقادم).
+- **ملف المخطط**: المخطط `USER_SCHEMA_VERSION = 1`؛ أي ترحيل مستقبلي يجب أن يمر بـ `onMigration` مع اختبار صريح قبل الاعتماد (سياسة 03-4 و 07-B).
+
+## 5. مصادر المحتوى
+- Tanzil v1.1: التوزيع الرسمي عبر نموذج https://tanzil.net/download/ (نجاح مباشر). مرآة bاك-أب (GitLab quraninfo) أعطت صفحة خطأ — لم تُعتمد.
+- لم تُستخدم أي API سحابية في مسار العمل دون اتصال (متطلب 02).
+
+## 6. لا تمنع الانتقال للمرحلة 1
+القيود أعلاه (جهاز حقيقي/EAS) تؤثر على **التحقق النهائي على الجهاز** الذي يُجدول قبل الإصدار، ولا تمنع بناء التصميم والبنية والمواضيع في المرحلة 1. يُنصح بإضافة `expo-dev-client` وتجربة إقلاع واحدة على جهاز حقيقي في أقرب فرصة متاحة.
+
+## 7. معاينة الويب (Web Preview) — منصة فحص، ليست هدف توزيع
+- **Realm ليست قاعدة بيانات متصفح**: النسخة الموزَّعة (Android/iOS) تستخدم `realm` الأصلية؛
+  المعاينة تستخدم `BrowserRealm` (محاكاة localStorage) خلف **الواجهات نفسها**.
+- **الحسم بين المسارين** يتم عبر ملفات المنصة في Metro دون أي تهيئة إضافية:
+  `realm-ctor.ts` (عجينة Node/الاختبارات) / `realm-ctor.native.ts` (منتج) / `realm-ctor.web.ts` (محاكاة).
+  (ملاحظة تاريخية: محاولة تجاوز Metro عبر `metro.config.js`/resolver فشلت — مسارات الحزمة
+  الخاصة غير مستقرة — فاعتمدنا بدلها ملفات المنصة الأبسط والأكثر استقرارًا.)
+- **اكتشاف مهم عبر المعاينة**: المحاكاة الأولى أعادت *نسخ* الصفوف من `objects()`، بينما
+  المستودعات مكتوبة على دلالية Realm الحية (تعديل مرجع داخل `realm.write`) — لم تُحفظ
+  الإعدادات في المتصفح. أُصلحت المحاكاة لتعيد **مرجعًا حيًا** (مطابقة لسلوك Realm).
+  كان هذا عيبًا في منصة الفحص فقط — كود المنتج كان سليمًا، لكن المعاينة أثبتت أهميتها.
+- التفاصيل: `docs/WEB-PREVIEW.md`. لقطات الفحص الآلي: `preview-screenshots/`.
+```
+
+#### `docs/WEB-PREVIEW.md`  ·  4.4KB
+
+```md
+# المعاينة في المتصفح (Web Preview) — دليل التشغيل والحدود
+
+> المرجع: `02-ARCHITECTURE.md` (القسم 7): تطبيق **«رفيق القرآن الكريم»** يُوزَّع كـ Android/iOS.
+> المعاينة هنا **منصة فحص مؤقتة** لعرض الواجهة والتحقق من سلوك التطبيق في متصفح حقيقي،
+> وليست نسخة ويب موزَّعة — ولا تُقدَّم أبدًا كمنتج نهائي.
+
+## 1. ما الذي يعرضه المتصفح؟
+
+نفس مكونات React Native الحقيقية عبر `react-native-web`:
+
+| العنصر | الحالة في المعاينة |
+|---|---|
+| التخطيط RTL والخطوط (Tajawal/Amiri Quran) | ✅ تعمل |
+| النظام التصميمي (الألوان، البطاقات، الأزرار، مساحات اللمس ≥44px) | ✅ يعمل |
+| التنقّل (5 تبويبات + شاشات داخلية: مكتبتي، الإعدادات، حول التطبيق) | ✅ يعمل |
+| قراءة البيانات من المستودعات (الوضع المحفوظ، الورد اليومي) | ✅ تعمل |
+| حفظ الإعدادات (المظهر، حجم الخط) واستعادتها بعد إعادة التحميل | ✅ تعمل |
+| قاعدة البيانات | ⚠️ `BrowserRealm` فوق `localStorage` (مفتاح `quran-companion-preview-db`) — **محاكاة لمعاينة الواجهة فقط** |
+| النصوص القرآنية/الأذكار/التلاوات | — تبدأ من مراحلها المخططة (2/4/6) |
+
+**النسخة الموزَّعة (Android/iOS) تستخدم حزمة `realm` الأصلية دون أي تغيير** — ملف
+`src/database/realm/realm-ctor.native.ts` هو المسار المنتج، و`realm-ctor.web.ts`
+المحاكاة تُحسم لها تلقائيًا حسب المنصة في Metro (دون أي تهيئة إضافية).
+
+## 2. كيف تعمل المحاكاة (BrowserRealm)؟
+
+`src/database/realm/browser-adapter.ts` ينفّذ المصغّر من واجهة Realm المستخدم في التطبيق:
+`exists / open / objects / filtered / create / write / delete / close` فوق `localStorage`.
+
+**دلالية مرجع حي:** `objects()` يعيد الصفوف **مرجعًا حيًا** داخل المخزن — مطابقة لسلوك Realm
+الحقيقي (التعديل داخل `realm.write()` يُحفظ). أي نسخ للصفوف هنا كان يكسر المستودعات
+المكتوبة على هذه الدلالية — **اكتُشف هذا بالتحديد في هذه المعاينة** (انظر STAGE-PROGRESS).
+حقول `date` تُعاد كـ `Date` بعد كل قراءة (JSON يفقد النوع) — مطابقة لسلوك Realm أيضًا.
+
+## 3. التشغيل
+
+```bash
+# 1) تصدير نسخة الويب
+npx expo export --platform web        # → dist/
+
+# 2) تشغيل خادم المعاينة (يفحص الملف عند كل طلب → إعادة التصدير تُطبَّق دون إعادة تشغيل)
+node scripts/serve-preview.mjs         # المنفذ 8081 (أو PORT=xxxx)
+```
+
+- خادم ساكن بلا تبعيات خارجية، يرتبط `0.0.0.0`، ويمنع تجاوز المسار (path traversal).
+- `dist/` مُهمَل في git (`.gitignore`) — يُعاد بناؤه بالأمر أعلاه.
+
+## 4. الفحص الآلي (Playwright)
+
+اختبار تدفق كامل في بيئة تطوير (خارج المستودع عمدًا): إقلاع ← RTL ← التصفح بين التبويبات
+← تبديل المظهر/حجم الخط ← «حول التطبيق» ← إعادة تحميل ← **تأكيد استعادة الإعدادات**
+← التقاط لقطات في `preview-screenshots/`. آخر نتيجة موثقة: **صفر أخطاء console/page**
+و`RESTORED SETTINGS: {"theme":"dark","fontScale":1.1}`.
+
+## 5. حدود واضحة (لا يُقدَّم منها أكثر مما هو مبنية)
+
+- بيانات المعاينة في `localStorage` المتصفح المحلي فقط — تُمسح بمسح تخزين المتصفح.
+- لا التزامن السحابي، ولا حسابات — (متوافق مع متطلبات v1: local-only).
+- كل شاشة لم تُبنَ بعد (المصحف/الأذكار/الاستماع) تعرض **حالة فارغة صادقة** بمراحلهها —
+  لا أزرار زائفة ولا بيانات تجريبية.
+```
+
+### 8.10) android (ملفات الإعدادات — الثنائيات في الـ ZIP)
+
+#### `android/build.gradle`  ·  556B
+
+```gradle
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
+```
+
+#### `android/settings.gradle`  ·  1.3KB
+
+```gradle
+pluginManagement {
+  def reactNativeGradlePlugin = new File(
+    providers.exec {
+      workingDir(rootDir)
+      commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+    }.standardOutput.asText.get().trim()
+  ).getParentFile().absolutePath
+  includeBuild(reactNativeGradlePlugin)
+  
+  def expoPluginsPath = new File(
+    providers.exec {
+      workingDir(rootDir)
+      commandLine("node", "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
+    }.standardOutput.asText.get().trim(),
+    "../android/expo-gradle-plugin"
+  ).absolutePath
+  includeBuild(expoPluginsPath)
+}
+
+plugins {
+  id("com.facebook.react.settings")
+  id("expo-autolinking-settings")
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
+    ex.autolinkLibrariesFromCommand()
+  } else {
+    ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
+  }
+}
+expoAutolinking.useExpoModules()
+
+rootProject.name = 'رفيق القرآن الكريم'
+
+expoAutolinking.useExpoVersionCatalog()
+
+include ':app'
+includeBuild(expoAutolinking.reactNativeGradlePlugin)
+```
+
+#### `android/gradle.properties`  ·  2.5KB
+
+```gradle
+# Project-wide Gradle settings.
+
+# IDE (e.g. Android Studio) users:
+# Gradle settings configured through the IDE *will override*
+# any settings specified in this file.
+
+# For more details on how to configure your build environment visit
+# http://www.gradle.org/docs/current/userguide/build_environment.html
+
+# Specifies the JVM arguments used for the daemon process.
+# The setting is particularly useful for tweaking memory settings.
+# Default value: -Xmx512m -XX:MaxMetaspaceSize=256m
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+
+# When configured, Gradle will run in incubating parallel mode.
+# This option should only be used with decoupled projects. More details, visit
+# http://www.gradle.org/docs/current/userguide/multi_project_builds.html#sec:decoupled_projects
+org.gradle.parallel=true
+
+# AndroidX package structure to make it clearer which packages are bundled with the
+# Android operating system, and which are packaged with your app's APK
+# https://developer.android.com/topic/libraries/support-library/androidx-rn
+android.useAndroidX=true
+
+# Enable AAPT2 PNG crunching
+android.enablePngCrunchInReleaseBuilds=true
+
+# Use this property to specify which architecture you want to build.
+# You can also override it from the CLI using
+# ./gradlew <task> -PreactNativeArchitectures=x86_64
+reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+
+# Use this property to enable support to the new architecture.
+# This will allow you to use TurboModules and the Fabric render in
+# your application. You should enable this flag either if you want
+# to write custom TurboModules/Fabric components OR use libraries that
+# are providing them.
+newArchEnabled=true
+
+# Use this property to enable or disable the Hermes JS engine.
+# If set to false, you will be using JSC instead.
+hermesEnabled=true
+
+# Use this property to enable edge-to-edge display support.
+# This allows your app to draw behind system bars for an immersive UI.
+# Note: Only works with ReactActivity and should not be used with custom Activity.
+edgeToEdgeEnabled=true
+
+# Enable GIF support in React Native images (~200 B increase)
+expo.gif.enabled=true
+# Enable webp support in React Native images (~85 KB increase)
+expo.webp.enabled=true
+# Enable animated webp support (~3.4 MB increase)
+# Disabled by default because iOS doesn't support animated webp
+expo.webp.animated=false
+
+# Enable network inspector
+EX_DEV_CLIENT_NETWORK_INSPECTOR=true
+
+# Use legacy packaging to compress native libraries in the resulting APK.
+expo.useLegacyPackaging=false
+
+expo.inlineModules.watchedDirectories=[]
+```
+
+#### `android/app/build.gradle`  ·  8.0KB
+
+```gradle
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
+    reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+    hermesCommand = new File(["node", "--print", "require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/hermesc/%OS-BIN%/hermesc"
+    codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+
+    enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
+    // Use Expo CLI to bundle the app, this ensures the Metro config
+    // works correctly with Expo projects.
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    bundleCommand = "export:embed"
+
+    /* Folders */
+     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
+    // root = file("../../")
+    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
+    // reactNativeDir = file("../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
+    // codegenDir = file("../../node_modules/@react-native/codegen")
+
+    /* Variants */
+    //   The list of variants to that are debuggable. For those we're going to
+    //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
+    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
+    // debuggableVariants = ["liteDebug", "prodDebug"]
+
+    /* Bundling */
+    //   A list containing the node command and its flags. Default is just 'node'.
+    // nodeExecutableAndArgs = ["node"]
+
+    //
+    //   The path to the CLI configuration file. Default is empty.
+    // bundleConfig = file(../rn-cli.config.js)
+    //
+    //   The name of the generated asset file containing your JS bundle
+    // bundleAssetName = "MyApplication.android.bundle"
+    //
+    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
+    // entryFile = file("../js/MyApplication.android.js")
+    //
+    //   A list of extra flags to pass to the 'bundle' commands.
+    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+    // extraPackagerArgs = []
+
+    /* Hermes Commands */
+    //   The hermes compiler command to run. By default it is 'hermesc'
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    //
+    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
+    // hermesFlags = ["-O", "-output-source-map"]
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
+ */
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace 'com.ihabajour.qurancompanion'
+    defaultConfig {
+        applicationId 'com.ihabajour.qurancompanion'
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "0.1.0"
+
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+            signingConfig signingConfigs.debug
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            shrinkResources enableShrinkResources.toBoolean()
+            minifyEnabled enableMinifyInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
+            crunchPngs enablePngCrunchInRelease.toBoolean()
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
+            useLegacyPackaging enableLegacyPackaging.toBoolean()
+        }
+    }
+    androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+// Apply static values from `gradle.properties` to the `android.packagingOptions`
+// Accepts values in comma delimited lists, example:
+// android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini
+["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
+    // Split option: 'foo,bar' -> ['foo', 'bar']
+    def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
+    // Trim all elements in place.
+    for (i in 0..<options.size()) options[i] = options[i].trim();
+    // `[] - ""` is essentially `[""].filter(Boolean)` removing all empty strings.
+    options -= ""
+
+    if (options.length > 0) {
+        println "android.packagingOptions.$prop += $options ($options.length)"
+        // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
+        options.each {
+            android.packagingOptions[prop] += it
+        }
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
+    def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
+    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
+
+    if (isGifEnabled) {
+        // For animated gif support
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
+    }
+
+    if (isWebpEnabled) {
+        // For webp support
+        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
+        if (isWebpAnimatedEnabled) {
+            // Animated webp support
+            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
+        }
+    }
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
+```
+
+#### `android/app/proguard-rules.pro`  ·  562B
+
+```
+# Add project specific ProGuard rules here.
+# By default, the flags in this file are appended to flags specified
+# in /usr/local/Cellar/android-sdk/24.3.3/tools/proguard/proguard-android.txt
+# You can edit the include path and order by changing the proguardFiles
+# directive in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# react-native-reanimated
+-keep class com.swmansion.reanimated.** { *; }
+-keep class com.facebook.react.turbomodule.** { *; }
+
+# Add any project specific keep options here:
+```
+
+#### `android/app/src/main/AndroidManifest.xml`  ·  2.3KB
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:name="android.permission.INTERNET"/>
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+  <uses-permission android:name="android.permission.VIBRATE"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <category android:name="android.intent.category.BROWSABLE"/>
+      <data android:scheme="https"/>
+    </intent>
+  </queries>
+  <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false">
+    <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
+    <meta-data android:name="expo.modules.updates.ENABLE_BSDIFF_PATCH_SUPPORT" android:value="true"/>
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
+    <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="qurancompanion"/>
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
+```
+
+#### `android/app/src/debug/AndroidManifest.xml`  ·  374B
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
+    <application android:usesCleartextTraffic="true" tools:targetApi="28" tools:ignore="GoogleAppIndexingWarning" tools:replace="android:usesCleartextTraffic" />
+</manifest>
+```
+
+#### `android/app/src/debugOptimized/AndroidManifest.xml`  ·  374B
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
+    <application android:usesCleartextTraffic="true" tools:targetApi="28" tools:ignore="GoogleAppIndexingWarning" tools:replace="android:usesCleartextTraffic" />
+</manifest>
+```
+
+#### `android/app/src/main/java/com/ihabajour/qurancompanion/MainActivity.kt`  ·  2.1KB
+
+```
+package com.ihabajour.qurancompanion
+
+import android.os.Build
+import android.os.Bundle
+
+import com.facebook.react.ReactActivity
+import com.facebook.react.ReactActivityDelegate
+import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
+import com.facebook.react.defaults.DefaultReactActivityDelegate
+
+import expo.modules.ReactActivityDelegateWrapper
+
+class MainActivity : ReactActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    // Set the theme to AppTheme BEFORE onCreate to support
+    // coloring the background, status bar, and navigation bar.
+    // This is required for expo-splash-screen.
+    setTheme(R.style.AppTheme);
+    super.onCreate(null)
+  }
+
+  /**
+   * Returns the name of the main component registered from JavaScript. This is used to schedule
+   * rendering of the component.
+   */
+  override fun getMainComponentName(): String = "main"
+
+  /**
+   * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
+   * which allows you to enable New Architecture with a single boolean flags [fabricEnabled]
+   */
+  override fun createReactActivityDelegate(): ReactActivityDelegate {
+    return ReactActivityDelegateWrapper(
+          this,
+          BuildConfig.IS_NEW_ARCHITECTURE_ENABLED,
+          object : DefaultReactActivityDelegate(
+              this,
+              mainComponentName,
+              fabricEnabled
+          ){})
+  }
+
+  /**
+    * Align the back button behavior with Android S
+    * where moving root activities to background instead of finishing activities.
+    * @see <a href="https://developer.android.com/reference/android/app/Activity#onBackPressed()">onBackPressed</a>
+    */
+  override fun invokeDefaultOnBackPressed() {
+      if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
+          if (!moveTaskToBack(false)) {
+              // For non-root activities, use the default implementation to finish them.
+              super.invokeDefaultOnBackPressed()
+          }
+          return
+      }
+
+      // Use the default back button implementation on Android S
+      // because it's doing more than [Activity.moveTaskToBack] in fact.
+      super.invokeDefaultOnBackPressed()
+  }
+}
+```
+
+#### `android/app/src/main/java/com/ihabajour/qurancompanion/MainApplication.kt`  ·  1.5KB
+
+```
+package com.ihabajour.qurancompanion
+
+import android.app.Application
+import android.content.res.Configuration
+
+import com.facebook.react.PackageList
+import com.facebook.react.ReactApplication
+import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
+import com.facebook.react.ReactPackage
+import com.facebook.react.ReactHost
+import com.facebook.react.common.ReleaseLevel
+import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
+
+import expo.modules.ApplicationLifecycleDispatcher
+import expo.modules.ExpoReactHostFactory
+
+class MainApplication : Application(), ReactApplication {
+
+  override val reactHost: ReactHost by lazy {
+    ExpoReactHostFactory.getDefaultReactHost(
+      context = applicationContext,
+      packageList =
+        PackageList(this).packages.apply {
+          // Packages that cannot be autolinked yet can be added manually here, for example:
+          // add(MyReactNativePackage())
+        }
+    )
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+    DefaultNewArchitectureEntryPoint.releaseLevel = try {
+      ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
+    } catch (e: IllegalArgumentException) {
+      ReleaseLevel.STABLE
+    }
+    loadReactNative(this)
+    ApplicationLifecycleDispatcher.onApplicationCreate(this)
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+  }
+}
+```
+
+#### `android/app/src/main/res/values/colors.xml`  ·  172B
+
+```xml
+<resources>
+  <color name="splashscreen_background">#FFFFFF</color>
+  <color name="iconBackground">#145A46</color>
+  <color name="colorPrimary">#023c69</color>
+</resources>
+```
+
+#### `android/app/src/main/res/values/strings.xml`  ·  94B
+
+```xml
+<resources>
+  <string name="app_name">رفيق القرآن الكريم</string>
+</resources>
+```
+
+#### `android/app/src/main/res/values/styles.xml`  ·  592B
+
+```xml
+<resources xmlns:tools="http://schemas.android.com/tools">
+  <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+    <item name="colorPrimary">@color/colorPrimary</item>
+    <item name="android:statusBarColor">@android:color/transparent</item>
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+  </style>
+  <style name="Theme.App.SplashScreen" parent="AppTheme">
+    <item name="android:windowBackground">@drawable/splashscreen_logo</item>
+  </style>
+</resources>
+```
+
+#### `android/.gitignore`  ·  183B
+
+```
+# OSX
+#
+.DS_Store
+
+# Android/IntelliJ
+#
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+
+# generated inline modules
+app/src/main/java/inline/
+
+# Bundle artifacts
+*.jsbundle
+```
+
+### 8.11) content (ملفات نصية صغيرة: تقارير/مواصفات/بصمات)
+
+#### `content/CONTENT-MANIFEST.md`  ·  3.6KB
+
+```md
+# بيان المحتوى — CONTENT-MANIFEST
+# المرجع: 02-ARCHITECTURE.md (القسم 3) و 05-CONTENT-AND-TRUST.md
+
+## النص القرآني — Tanzil (Uthmani)
+
+| الحقل | القيمة |
+|---|---|
+| المصدر | Tanzil Project — Tanzil Quran Text (Uthmani) |
+| الإصدار | **1.1** (أحدث إصدار منشور على tanzil.net، فُحص بتاريخ 2026-10-12) |
+| الترخيص | **Creative Commons Attribution 3.0** — يُسمح بالنسخ الحرفي والتوزيع دون تغيير، مع إلزامية: (1) نسبة المصدر «Tanzil Project» بوضوح، (2) رابط إلى tanzil.net، (3) بقاء بلوك الحقوق في كل نسخة حرفية وملف مشتق |
+| رابط التحميل | https://tanzil.net/download/ |
+| طريقة الاستحصال | نموذج التوزيع الرسمي (GET `https://tanzil.net/pub/download/index.php`): نوع النص **Uthmani**، الصيغة **Text (with aya numbers)**، مع: علامات الوقف ۖ، علامات السجدة ۩، علامات ربع الحزب ۞، التطويل تحت الألف فوقية |
+| الملف | `content/quran-uthmani.txt` (UTF-8، صيغة `سورة|آية|نص`) |
+| الحجم | 1,396,684 بايت |
+| البصمة SHA-256 | `7f30c647331a61100ebf24a80507dc0fcdd9f2df97f1312b5b2dfcb982a7f326` |
+| تاريخ الاستيراد | 2026-10-12 |
+| عدد الآيات | 6236 (114 سورة — مطابق للجدول المعتمد رواية حفص) |
+| العلامات | وقف ۖ: 1682 موضعًا • سجدة ۩: 15 • ربع الحزب ۞: 199 |
+| التحقق | `node scripts/validate-quran.mjs` → `content/validation-report.json` — **PASSED 18/18** |
+
+### أدلة التحقق (2026-10-12)
+1. **بنية موضوعية**: 114 سورة بالترتيب، ترقيم متتابع، عدد آيات كل سورة مطابق للجدول المعتمد (المجموع 6236).
+2. **مقارنة بايت-ببايت مع نسخة مرجعية مستقلة**: `content/refs/tanzil-mirror-v1.1.txt` — آيات الـ6236 مطابقة تمامًا (الفرق الوحيد بلوك حقوق التذييل: السنة والفراغات الطرفية).
+3. **اتساق داخلي**: البسملة (الكلمات 2-4) مطابقة في الآية الافتتاحية لكل سورة عدا 1 و9؛ الكلمة الأولى بصيغتين موثقتين من المصدر (بِسْمِ / بِّسْمِ) — كما في النص العثماني المعتمد.
+4. **العلامات**: الوقف والسجدة وربع الحزب حاضرة بأعدادها المسجلة.
+5. **مراجعة بصرية للعيّنات** (بداية/وسط/نهاية): 1:1، 2:1، 2:255، 18:1، 36:83، 112:1، 114:1، 114:6 — مسجّلة في `content/validation-report.json`، وتُستكمل المراجعة البشرية النهائية من المطوّر قبل اعتماد حزمة المحتوى.
+
+### التزامات النشر (تُنشر في شاشة «حول التطبيق» وصفحة المصادر)
+- «نص القرآن الكريم: Tanzil Project — Tanzil Quran Text (Uthmani) v1.1 — Creative Commons Attribution 3.0 — tanzil.net»
+- لا يُغيّر النص ولا يُصحّح آليًا (شرط الترخيص + متطلب 05-1).
+- يُعاد تشغيل `validate-quran.mjs` قبل أي استيراد للمحتوى أو تحديثه، مع الاحتفاظ بالمرآة المستقلة للمقارنة.
+
+## محتوى آخر
+لم يُستورد أي محتوى ديني آخر بعد (التفسير والمفردات والأذكار والأدعية والصوت تُوثَّق هنا عند استيرادها — المرحلة 4-6).
+```
+
+#### `content/IMPORT-REPORT.md`  ·  3.5KB
+
+```md
+# سجل اعتماد حزمة بيانات المصحف — المرحلة 2
+
+**تاريخ الاعتماد:** 2026-10-12T09:56:16.515Z
+**الحالة:** ✅ ناجحة — الحزمة مقبولة
+
+## المصادر (05-1: تسجيل اسم المصدر والإصدار والترخيص وتاريخ الاستيراد)
+| العنصر | القيمة |
+|---|---|
+| النص القرآني | Tanzil Project — Tanzil Quran Text (Uthmani) **v1.1** |
+| ترخيص النص | CC-BY 3.0 — نسخ حرفية فقط + نسبة المصدر + رابط tanzil.net (05-1) |
+| رابط المصدر | https://tanzil.net/ |
+| بصمة النص SHA-256 | `7f30c647331a61100ebf24a80507dc0fcdd9f2df97f1312b5b2dfcb982a7f326` |
+| البيانات الوصفية | Tanzil Project — Quran Metadata **v1.0** |
+| ترخيص الوصفية | CC-BY (ترويسة الملف) |
+| رابط الوصفية | https://tanzil.net/docs/Quran_Metadata |
+| بصمة الوصفية SHA-256 | `8867c1d88191472adec9db694b3cd9f135b1a2ef580574d32cf888dcb22c5c7a` |
+| بصمة محتوى الحزمة (content) | `36ff5fdfd520dd54afb87b6a21ae9fee7f226106dcd8a28a84aa7ad35feaec2c` |
+
+## نتائج بوابة الاعتماد (05-5)
+| # | الفحص | النتيجة | التفصيل |
+|---|---|---|---|
+| S1 | بصمة الملف النصي مطابقة للمثبتة | ✓ نجح | 7f30c647331a6110… |
+| S2 | بصمة ملف الوصفية مطابقة للمثبتة | ✓ نجح | 8867c1d88191472a… |
+| G1 | 114 سورة مرقمة 1..114 متتابعة (الوصفية) | ✓ نجح |  |
+| G1b | ترقيم النص متتابع (سورة/آية) من 1:1 إلى 114:نهاية | ✓ نجح | آخر سطر: 114|6|مِنَ ٱ… |
+| G2 | عدد آيات كل سورة في النص == البيانات الوصفية (مصدر مستقل) | ✓ نجح | 114/114 مطابقة |
+| G3 | عدد الآيات == الجدول المستقل (حفص عن عاصم) | ✓ نجح | المجموع=6236/6236 |
+| G4 | إعادة بناء السطر من الحزمة == الملف الأصلي (بايت-ببايت) | ✓ نجح | 6236 سطر |
+| G5 | مواضع السجدات ۩ في النص == سجلات sajdah في الوصفية | ✓ نجح | وصفية=15، نص=15 |
+| G6 | العلامات (ۖ ۞ ۩) والتشكيل محفوظة كما في المصدر | ✓ نجح |  |
+| G7 | أداة الفحص المستقلة (18/18) تنجح | ✓ نجح | exit 0 |
+| G8 | لا معرفات آية مكررة (s:a فريد) | ✓ نجح | 6236 معرف |
+
+## المخرجات
+- `content/quran-data.json` — 114 سورة، 6236 آية، مع حقول مشتقة (جزء/ربع حزب/موضع/ركوع/صفحة مدنية/سجدة) وحقل بحث مُطبَّع.
+- النص القرآني **بلا أي تغيير** (G4 بايت-ببايت، G6 علامات وتشكيل محفوظة).
+- لم يُستخدم نموذج لغوي في أي خطوة (05-1).
+
+## مراجعة بشرية (05-5-6)
+عيّنات مطبوعة لمراجعة بصرية (بداية/وسط/نهاية):
+- 1:1 — بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ
+- 2:255 — ٱللَّهُ لَآ إِلَـٰهَ إِلَّا هُوَ ٱلْحَىُّ ٱلْقَيُّومُ ۚ لَا تَأْخُذُهُۥ سِنَةٌ …
+- 36:1 — بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ يسٓ…
+- 114:6 — مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ
+
+**المُراجع:** إيهاب عجور أبو الأمير (مطور التطبيق) — تُوثَّق المراجعة في STAGE-PROGRESS.md.
+```
+
+#### `content/QA-IMPORT-REPORT.md`  ·  4.0KB
+
+```md
+# سجل اعتماد حزمة التفسير (المرحلة 4)
+
+**التاريخ:** 2026-10-12 — **النتيجة:** نجح ✅ (22 نجاح / 0 فشل)
+
+## المصادر
+
+| المصدر | الوصف | التوزيع |
+|---|---|---|
+| تفسير ابن كثير (ar-tafsir-ibn-kathir، resource_id 14) | إسماعيل بن كثير (ت 1373هـ) — نص في الملك العام | api.quran.com (نُزِّل 2026-10-12) |
+| تفسير البغوي — معاني القرآن (ar-tafsir-al-baghawi، resource_id 94) | هبة الله بن موسى البغوي (ت 516هـ) — نص في الملك العام | api.quran.com (نُزِّل 2026-10-12) |
+
+## النواقص الموثقة
+- ibnkathir: 31 آية لا تغطيها بيانات المصدر (الواجهة تعرض «لا يتوفر» للمستخدم، والبغوي يغطيها كاملًا): 5:97, 6:56, 11:47, 20:68, 20:79, 23:37, 26:104, 26:159, 26:164, 26:174, 26:175, 26:178, 26:179, 26:180, 30:16, 33:47, 37:137, 38:70, 42:31, 43:27, 47:28, 53:15, 54:35, 74:15, 74:32, 74:46, 75:28, 77:14, 77:18, 77:23, 86:16
+- baghawi: مكتمل 6236/6236.
+
+## قرارات الاعتماد
+- **رُفض "تفسير الميسر" (resource_id 16)**: اتُّضح أن بياناته على المصدر جزئية
+  (نقص نحو 1500 آية، منها سور كاملة مثل 80–83) → لا يصلح مصدرًا معتمدًا كاملًا.
+- اختُبر قبل الاعتماد: البغوي (94) مكتمل سورة بسورة مقابل حزمة المصحف (6236 آية).
+
+## بروتوكول
+- النصوص نزلت حرفيًا من واجهة المصدر (لا توليد بنماذج لغوية إطلاقًا).
+- الاستجابات الخام محفوظة في `content/refs/tafsir/` وبصماتها في `manifest.sha256`.
+- التطبيع الوحيد: إزالة وسوم HTML (p/span) وفك الكيانات وضغط المسافات — لا تعديل دلالي.
+
+## الفحوصات
+
+- ✅ حزمة المصحف معتمدة (114 سورة / 6236 آية) (سور=114 آيات=6236)
+- ✅ ibnkathir: 114 ملفًا خامًا (114 ملفات)
+- ✅ baghawi: 114 ملفًا خامًا (114 ملفات)
+- ✅ ibnkathir: آيات فارغة (0 فارغة)
+- ✅ ibnkathir: النواقص == القائمة الموثقة (31 آية — حُصرت ومُوثقت في التقرير) (31 نقصًا)
+- ✅ baghawi: آيات فارغة (0 فارغة)
+- ✅ baghawi: مكتمل 6236 آية (سورة بسورة == حزمة المصحف) (نواقص=0)
+- ✅ baghawi: كل المفاتيح 6236 موجودة (6236 مفتاح)
+- ✅ ibnkathir: كل المفاتيح ما عدا النواقص الموثقة موجودة (0 مفقود غير موثق)
+- ✅ لا نصوص فارغة/تالفة (فحص الفراغ + العربية) (فارغة=0 قصور=0 غير عربية=0)
+- ✅ تطابق 1:1 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=28738)
+- ✅ تطابق 1:1 baghawi مع الخام (بعد إسقاط الوسوم) (طول=3382)
+- ✅ تطابق 2:255 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=16482)
+- ✅ تطابق 2:255 baghawi مع الخام (بعد إسقاط الوسوم) (طول=4995)
+- ✅ تطابق 33:42 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=410)
+- ✅ تطابق 33:42 baghawi مع الخام (بعد إسقاط الوسوم) (طول=277)
+- ✅ تطابق 67:1 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=3057)
+- ✅ تطابق 67:1 baghawi مع الخام (بعد إسقاط الوسوم) (طول=40)
+- ✅ تطابق 112:1 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=13776)
+- ✅ تطابق 112:1 baghawi مع الخام (بعد إسقاط الوسوم) (طول=623)
+- ✅ تطابق 114:6 ibnkathir مع الخام (بعد إسقاط الوسوم) (طول=1562)
+- ✅ تطابق 114:6 baghawi مع الخام (بعد إسقاط الوسوم) (طول=2365)
+
+**إجمالي الفحوصات: 22 — نجاح 22 / فشل 0**
+```
+
+#### `content/ADHKAR-IMPORT-REPORT.md`  ·  2.5KB
+
+```md
+# تقرير استيراد الأذكار (المرحلة 5) — بوابة 05
+
+**النتيجة: 11 نجح / 0 فشل** (2026-10-12)
+
+## المصادر
+| المصدر | الدور | النسخة | الرخصة |
+|---|---|---|---|
+| osamayy/azkar-db (azkar_obj.json) | النص الكامل: 345 ذكرًا / 135 فئة | commit fbdfa017782c | بلا رخصة صريحة — نص ديني عام (مخاطرة موثقة) |
+| Seen-Arabic (morning_ar.json) | تحقق مستقل: أذكار الصباح (34) | commit 29d7623fede5 | MIT |
+| content/quran-data.json (Tanzil Uthmani v1.1) | كل نص قرآني داخل الأذكار | معتمدة بالمرحلة 2 | ملكية عامة + بصمة |
+
+## الفحوص
+- البنية: 345 عنصرًا، 135 فئة، نصوص عربية سليمة، بلا رموز تحكم.
+- اختلافات التكرار بين المصدرين (3): «يَا حَيُّ يَا قَيُّومُ بِ» (MIT: 1 / الحزمة: 3)، «لاَ إِلَهَ إِلاَّ اللَّهُ» (MIT: 10 / الحزمة: 1)، «لاَ إِلَهَ إِلاَّ اللَّهُ» (MIT: 100 / الحزمة: 1) — يُعرض عدّاد المصدر المعتمد (osamayy).
+- عناصر MIT غير المطابقة نصًا (5): «الْحَمْدُ لِلَّهِ وَحْدَهُ، وَالصَّ»، «اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَ»، «أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّام»، «أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَ»، «سُبْحَانَ اللَّهِ وَبِحَمْدِهِ» — فروق مصاغة/رواية موثقة بين المصدرين (نفس الذكر بصيغة أخرى) أو غياب من المصدر المعتمد؛ لا تُعد خللًا في النصوص المطابقة (29/34).
+- القرآن: 12/12 نصًا قرآنيًا متطابق مع Tanzil بعد تطبيع الرسم (العثماني/الاعلمي).
+- الصباح (تحقق MIT): 29/34 نصًا متطابقًا، التكرارات 26/29 متطابقة.
+- قاعدة التكرار: القيمة الرقمية إن وُجدت في المصدر، وإلا 1 (يُقال مرة).
+
+## قاعدة العرض في التطبيق
+- العنصر ذو quranRef يُعرض نصه من حزمة Tanzil المعتمدة (اتساق مع المصحف) — لا من هذا المصدر.
+- سائر الأذكار تُعرض كنص المصدر (فصحى مشكّلة) دون أي توليد أو تعديل.
+```
+
+#### `content/validation-report.json`  ·  5.5KB
+
+```json
+{
+  "file": "content/quran-uthmani.txt",
+  "checkedAt": "2026-10-12T09:56:16.388Z",
+  "source": {
+    "name": "Tanzil Quran Text (Uthmani)",
+    "version": "1.1",
+    "license": "Creative Commons Attribution 3.0 — نسخ حرفية دون تغيير، مع نسبة المصدر (Tanzil Project) ورابط tanzil.net في التطبيق",
+    "url": "https://tanzil.net/download/",
+    "obtainedVia": "نموذج التوزيع الرسمي (GET): نوع النص Uthmani، الصيغة Text (with aya numbers)، مع علامات الوقف والسجدة وربع الحزب والتطويل تحت الألف فوقية"
+  },
+  "sha256": "7f30c647331a61100ebf24a80507dc0fcdd9f2df97f1312b5b2dfcb982a7f326",
+  "bytes": 1396684,
+  "crossValidation": {
+    "mirror": "content/refs/tanzil-mirror-v1.1.txt (نسخة مستقلة من Tanzil v1.1)",
+    "mirrorSha256": "f64fe7657dbe2e185e9995e14f7a67ee6cf1a30773f39184883d7a763d70fb19",
+    "note": "الفرق الوحيد بين الملفين في بلوك حقوق التذييل (سنة الحقول والفراغات الطرفية)؛ آيات الـ6236 مطابقة بايت-ببايت"
+  },
+  "stats": {
+    "totalAyahs": 6236,
+    "totalSurahs": 114,
+    "waqfMarks": 1682,
+    "sajdahMarks": 15,
+    "rubElHizb": 199
+  },
+  "samples": {
+    "1:1": "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ",
+    "2:1": "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ الٓمٓ",
+    "2:255": "ٱللَّهُ لَآ إِلَـٰهَ إِلَّا هُوَ ٱلْحَىُّ ٱلْقَيُّومُ ۚ لَا تَأْخُذُهُۥ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُۥ مَا فِى ٱلسَّمَـٰوَٰتِ وَمَا فِى ٱلْأَرْضِ ۗ مَن ذَا ٱلَّذِى يَشْفَعُ عِندَهُۥٓ إِلَّا بِإِذْنِهِۦ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَىْءٍ مِّنْ عِلْمِهِۦٓ إِلَّا بِمَا شَآءَ ۚ وَسِعَ كُرْسِيُّهُ ٱلسَّمَـٰوَٰتِ وَٱلْأَرْضَ ۖ وَلَا يَـُٔودُهُۥ حِفْظُهُمَا ۚ وَهُوَ ٱلْعَلِىُّ ٱلْعَظِيمُ",
+    "18:1": "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٱلْحَمْدُ لِلَّهِ ٱلَّذِىٓ أَنزَلَ عَلَىٰ عَبْدِهِ ٱلْكِتَـٰبَ وَلَمْ يَجْعَل لَّهُۥ عِوَجَا ۜ",
+    "36:83": "فَسُبْحَـٰنَ ٱلَّذِى بِيَدِهِۦ مَلَكُوتُ كُلِّ شَىْءٍ وَإِلَيْهِ تُرْجَعُونَ",
+    "112:1": "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ قُلْ هُوَ ٱللَّهُ أَحَدٌ",
+    "114:1": "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ",
+    "114:6": "مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ"
+  },
+  "visualReview": {
+    "required": true,
+    "reviewer": null,
+    "note": "تُملأ المراجعة البصرية يدويًا قبل اعتماد الحزمة (بوابة 05-5 بند 6)"
+  },
+  "checks": [
+    {
+      "name": "الملف UTF-8 بلا BOM",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "بلا أسطر CRLF",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "كل الأسطر بصيغة sora|ayah|نص",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "عدد الآيات الإجمالي = 6236",
+      "ok": true,
+      "detail": "الفعلي 6236"
+    },
+    {
+      "name": "عدد السور = 114",
+      "ok": true,
+      "detail": "الفعلي 114"
+    },
+    {
+      "name": "ترقيم السور 1..114 بالترتيب",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ترقيم الآيات متتابع داخل كل سورة بدءًا من 1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "عدد آيات كل سورة مطابق للجدول المعتمد (مجموع 6236)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "لا آية بنص فارغ",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "الآيات الـ6236 مطابقة بايت-ببايت للمرآة المستقلة",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "وُجدت آية 1:1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "البسملة 4 كلمات",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "البسملة في الآية الافتتاحية لكل سورة عدا 1 و9 (الكلمات 2-4 مطابقة والكلمة الأولى بنهاية موحدة)",
+      "ok": true,
+      "detail": "صيغ الكلمة الأولى: 2"
+    },
+    {
+      "name": "9:1 بلا بسملة",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "وجود علامات الوقف ۖ",
+      "ok": true,
+      "detail": "عدد المواضع: 1682"
+    },
+    {
+      "name": "وجود علامات السجدة ۩",
+      "ok": true,
+      "detail": "عدد المواضع: 15"
+    },
+    {
+      "name": "وجود علامات ربع الحزب ۞",
+      "ok": true,
+      "detail": "عدد المواضع: 199"
+    },
+    {
+      "name": "حُفظ بلوك حقوق Tanzil في نهاية الملف",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "result": "PASSED"
+}
+```
+
+#### `content/refs/tafsir/manifest.sha256`  ·  20.3KB
+
+```
+1f77b9e9c59184f3a3913d592c430eacf7c800ce90e3a1033aa0177bf14e77ff  ibnkathir/chapter-1.json
+172124bcfeecfd7ef431764b0ab86b6aa1764a01719677b7831d49804cb8436b  ibnkathir/chapter-10.json
+7843b604c2a07ad77e9c30efc5028c494a384ef09882ccfdade6425eeba06d59  ibnkathir/chapter-100.json
+a4f5e5b53d868d5113074877f68f2cd40ae8f6a3610362ab189eb664249607db  ibnkathir/chapter-101.json
+5de0393fe310ccba5c2ba17a9a6992055996f102bc9adb1928aa8dd8120623b4  ibnkathir/chapter-102.json
+1e186a6a258e0189dde5ed1adb3ca0a27b5b5df49d72b07fdc0561f86295aa8d  ibnkathir/chapter-103.json
+57ddcf4152dc2db70e401c09ef896e365f5a4418d91b9f585803ac186914163d  ibnkathir/chapter-104.json
+8ab7c3a07842a78d7f525e436804bd6296fe23b83793fa92a4697dfdbc5a7ac3  ibnkathir/chapter-105.json
+5816bb47690538e8ad44102df266711da46af21bbc5d91670f2bfa7398188895  ibnkathir/chapter-106.json
+c2446d77687df5b4bd8d68ae5716d3c7767487d6578b5ac04ca7b168964deb59  ibnkathir/chapter-107.json
+351a85116da0ca6ce70efafbb6a1b0fa918a38446a73dc75fd5973e0e9474b6b  ibnkathir/chapter-108.json
+f20c028b7b7f9b0e051b07ed788e8c967bba8da11f9e6898563bccf11c6a4008  ibnkathir/chapter-109.json
+826f0d15c0b6714f94fd19bab48910fd2d86986d8d625dfb15535223e4c7a963  ibnkathir/chapter-11.json
+6c46c92dc07c9e6aab1ccec84a52866b894ab2d4ce36e4b87df05f7da5c2d94b  ibnkathir/chapter-110.json
+f8968a0799b90086cba17fa4b36527c3517bc9888c53784489e337b410b2917f  ibnkathir/chapter-111.json
+5c64937cd046947d7baeb3ebfef0e9738b4be44cad6f3b665d27c49a1be5a809  ibnkathir/chapter-112.json
+edd9087a40771bafb1cbc45bf0a98d4e8b773c3c9d793bead62368e1f1b10a16  ibnkathir/chapter-113.json
+24a839d90a6679f7838469c98ebfea8a87663f26b4a11534a35dab9d0f0de5c9  ibnkathir/chapter-114.json
+aedb71542c3462fef597473f6baf02c8a8f7ec6e79a9e0c29c8e7524e4078b0c  ibnkathir/chapter-12.json
+db7b790ca33dfba1718df11701e1c205eb42e7a3198b495c381aa4ddca9c6211  ibnkathir/chapter-13.json
+0c36183d35addb18e24e755f3ee455c30fd470269bc1208a5a8befc82eabcf4b  ibnkathir/chapter-14.json
+db6a81d830f7de0ba73328c6b4a332735816d5fbb1ab6018f41ffd2983efa19b  ibnkathir/chapter-15.json
+be9bae8aadf823857e4bcd7b905977a08d5d44463b7a842b463a22a4cf201f75  ibnkathir/chapter-16.json
+767d117ee08dce33a3227dfc65e5411c95bf5bee62e4f6cbd08fb4c3b3b18a86  ibnkathir/chapter-17.json
+a6f3671c00358bc079a3c41a9f851a8fc6203f682cd5c47b7264198e34d85db8  ibnkathir/chapter-18.json
+e12370a564a5e804d8765bec2018d778904215623549ce2f35940a30adf118c6  ibnkathir/chapter-19.json
+4c06b20a15ebd886b9463ebc2385e959fa916ff680eb9d717a8bf8cf2c857cc3  ibnkathir/chapter-2.json
+28f2001674bf89f57e2df7c93e545b668bd66d965763604e60f981d4f0902c40  ibnkathir/chapter-20.json
+94f35ace573853f308f9317093d48a4a22eef1023a3209082afaaa67248b7463  ibnkathir/chapter-21.json
+28a5af49c22ed5a7858c00d73252319a94fe93c10ea4079932ba15211b76b460  ibnkathir/chapter-22.json
+a21aa03f5169bb30d599832d16b2c13b0c5cd7e0a21cc389d8ede1e743171cdc  ibnkathir/chapter-23.json
+001fb45cc5177903e407ebcd4d81eef31986cce3fcf79c28eefdd879a7287447  ibnkathir/chapter-24.json
+811864a1bcb2d4263e6f8af5ab57a2bb8a6a602c98b7ff9aa22277abe1e5bf4b  ibnkathir/chapter-25.json
+d53e4ff0f58796cc7bc68920e3c00de703845df0fa409f3f1b259febb7f421b1  ibnkathir/chapter-26.json
+64b57802e5b1c80d0f33fd1364bc4cedf5d656147fa650f0e4773011bb9a6345  ibnkathir/chapter-27.json
+20c2579706e9a5b46ec595ad9f8b6921fc1fd2c9b60d149e075e0dcba4f7c66e  ibnkathir/chapter-28.json
+203d58ad993623667b4b60ffe019e6c4f1d40b781dbb0f6c695644b5ac234228  ibnkathir/chapter-29.json
+f8e36512d6e3d8ca7d862d4ec44d245e08d5400a12b5ca6f1061153bf30e002a  ibnkathir/chapter-3.json
+fbdb74202ebd959bacc4255bde242dd130da6ba17e09738d682289249d406fbc  ibnkathir/chapter-30.json
+54cc59dfac57a558d6a8f66b97bd76ed643625dcd216f533a8ea19be4ec05c01  ibnkathir/chapter-31.json
+f77890d6f17f9b1ac8d2b1a460deadd4f2e3088505e21b57eb26fc184b36bb8c  ibnkathir/chapter-32.json
+9366e2ebe0f9b83700a02135cf8de53270adb28f8cf96c5b3d7ada2382debf49  ibnkathir/chapter-33.json
+2e2d4f0b5268c841052976148ff1d89334464d2ee1fd046efb6bfa61c412d0dc  ibnkathir/chapter-34.json
+8195695055dacc76a1666451f7d34695b6d2cdd92bc28d619078f5786e34a181  ibnkathir/chapter-35.json
+a4f6ef1620dff5770510d8b44ed9cc47dfc391af5784d642df81d212611cc2a9  ibnkathir/chapter-36.json
+d788a2db2e86c95122aac68d80540530b1ed1b7589e3b238706b1d5cb77bba3c  ibnkathir/chapter-37.json
+96d889fad23efa364f6db3ab201e1301b95334f0fadcf8ba90fbbf7e35d1d603  ibnkathir/chapter-38.json
+39ea7c71aea2f95e876dc02f07be3edd971d222c325c58f167c54a65630aee00  ibnkathir/chapter-39.json
+bb0fb4aeab329d49728d6e6d680c378c4f99ba8622963c497f82b8616bc66850  ibnkathir/chapter-4.json
+813c9a2e645ec3d5b148a3de1410001c34a752dbe84baa9fe67d65cf2e00405c  ibnkathir/chapter-40.json
+6e0fe55a4d825df191b3afff0a1a16335cd9dcaad1bce6a8b3ad8a2f95be2966  ibnkathir/chapter-41.json
+c622f77d72c3b775db5ba7d27352faa0c208d2a9f1b00684c2bacba2f428d870  ibnkathir/chapter-42.json
+fbd4057da1272059ad7fd38c13b6f056d27b6b4252ce3ff2bf7aed80a46b3dd7  ibnkathir/chapter-43.json
+34ce8a569288173360b09740d38b931f9f71c7f431ca9024bd48a1dece7f453f  ibnkathir/chapter-44.json
+6dd273528543ea57e5707815cab01183aaa9e267722a67c60baa55d48ccc8757  ibnkathir/chapter-45.json
+16655f5361bd5b5347f5f9e08a150a220beed6ad6264550f8ad0ee3e334bf3a1  ibnkathir/chapter-46.json
+ee9a6be02eeae00bcf753980cb3223a9dd9b867da0b87acb424ee8c6069b41a3  ibnkathir/chapter-47.json
+968129702f0cdf54b01f6010b51ba5c777a5c545eef311d0174285603805851e  ibnkathir/chapter-48.json
+378bdc6199b0090e0ba2a5959d9810af4fc89eb14477a486a8f2cc5c5493cb48  ibnkathir/chapter-49.json
+c2f299e3d06d9ea7b295f20314fadb7cd9e7739a7651f77f101cda7595d82d1a  ibnkathir/chapter-5.json
+bb6e26c1f802b9b4bcb6d63dd3b6d7483f40011131732a7d2cfde9f8374a4e5f  ibnkathir/chapter-50.json
+001c70c085de543f518231e1447bb9170c91309c77470163ef97af3937164926  ibnkathir/chapter-51.json
+26a020f4f4345b51fa979761b18b0ab45a9f41a4456c2f9b89a64c6e6c45871b  ibnkathir/chapter-52.json
+e987ea53e7407d67940db1f9d104ba39909c4f14ae84cd9c0f62c22566e624e0  ibnkathir/chapter-53.json
+bab3736ffe91fff8ce99fe0d261166d85966d06604fe97fcccdb912615f39072  ibnkathir/chapter-54.json
+bebff2d9dcb961bb7ba29c9cd6cab13d7da02bbe7b667c3680ace519e13e0905  ibnkathir/chapter-55.json
+c29664909fac13a0ae601bb29fc0721df758c8787d433075f9e747cf4f153ce9  ibnkathir/chapter-56.json
+39546168545b999fe65a608b292479aa7fcc807f82104b605188cd9f71e02d15  ibnkathir/chapter-57.json
+1ce1220d67cbe9308871f0158d98a0fe4a2d11a7b4566e4edac08d9cd18aa0f9  ibnkathir/chapter-58.json
+f26324f15d0def4a10188bcc711656ed3917a00b724c390c1c9159bde850062c  ibnkathir/chapter-59.json
+88e5b2263bcee05317b1b35bcad770abbbf3816c7c4a1cbeccaf8ad51a2ee018  ibnkathir/chapter-6.json
+9f045b6e3fd1f665dd0100c0e1a7ae9667302b7998cc88b4540a849b9cd4de9c  ibnkathir/chapter-60.json
+a5a4d3816f3afeed1db9dd846bdae1c59ee2ced6a9a1709ede43f132e10f7e7c  ibnkathir/chapter-61.json
+ff8918586c1bcca55b264b1a07049624d64c3bb7689c5888524a226c91e2e532  ibnkathir/chapter-62.json
+20160d9a537eaf4a062b7e9ffd32f1d17817a4412aaae51c7cbc2095d2a52251  ibnkathir/chapter-63.json
+4b13530d0b66c460f665da82223ebe1f298e128f418c3fc987317688812b311f  ibnkathir/chapter-64.json
+8460f6c038b1538baa89d517364e63a842712b7a66612dc0096685253c014d53  ibnkathir/chapter-65.json
+59c0998f98ac699bfdb2740cb5c4a3c5acb906c54ab43e10156aa4f2eb9374a5  ibnkathir/chapter-66.json
+2fb4cd7920a81f5e7c5b4856d97c30ab8f6ea4c35c52d7b985798840456b9b2e  ibnkathir/chapter-67.json
+b8bd933dcc582cad6bbcbdeca9822ffa1748e0cdbba54be6b6ffdcbd254d8d4f  ibnkathir/chapter-68.json
+d66142041add76abfc9126a3c6767a74176d98f3dcd3c6970e7d7ea5f7cc79c3  ibnkathir/chapter-69.json
+90178d98848e8acc31a822bdd64868f9cf9ec7a010042424c911237b802b7e1f  ibnkathir/chapter-7.json
+ea9cb981f93b10c047a7ccf542d80e9fbe03d55c35a29f411ed125f0dde1abf5  ibnkathir/chapter-70.json
+9f09fe7a612b178dd545dabb8bf9466c23b8b1afe2bd0c796eb53c8472e87c4e  ibnkathir/chapter-71.json
+8900172863063bd2d5b0706249945ef466962389bd684ec6458fc1a460660dd0  ibnkathir/chapter-72.json
+f2690ca530e57562a9dd1d892f08ac63d838915a322e7a2d225002cd9f56957d  ibnkathir/chapter-73.json
+bdeeffd59952622668c78edfeae542c7f800f3bba96b6f443c357b74d71d8fdc  ibnkathir/chapter-74.json
+4cce958699f51108a0ad34d0105858b79062a0adcbc8a1124b1dbae2985a83e1  ibnkathir/chapter-75.json
+039d08653c43366d4ee4993d726e7d8ceefc0b4d9ce0f2914b61dd01a1761a3e  ibnkathir/chapter-76.json
+19d1d557bfff547f1598b1121e704347394b1838539929a8d158ec7784ddd7a1  ibnkathir/chapter-77.json
+43ae0d75d31f667bfdeea56b1845fa3be2f137db1a55eff6f0bae6abff444bec  ibnkathir/chapter-78.json
+c2850712f439a99fab0c21a12e18db169da2bcaa4628b601774c551140c87ca9  ibnkathir/chapter-79.json
+1e81e40b511d9ce834b14d7a70b113e7542aa535b2d15778a0a85c69c089aa8f  ibnkathir/chapter-8.json
+f5b65a67ab91f1477f3af6b813ee3ff4fadbd3fbece427122833dc85e1380b5a  ibnkathir/chapter-80.json
+9929705f1322e571847be9ae6b2efa2ecc357bfaa38505c3df5165ed5dda02ce  ibnkathir/chapter-81.json
+49122959be56ad3b9db632c88965d699319752dff10e67a4e533ed0bcc2f999f  ibnkathir/chapter-82.json
+089fc2db9fc407f3250d8193552e69e5308e3c7474f2b4ac6d3ecfb6cfc6e156  ibnkathir/chapter-83.json
+c3222caf76efe47fe9283522024bbdd66b7f5709421794d5a97fd273beb24211  ibnkathir/chapter-84.json
+c5872dd54cf0bd6ac1bd0222396d40d94205b5701be93f8beddda4ff8c36a20a  ibnkathir/chapter-85.json
+1821f4b19f802e51b0bb70cffa007894c22f5dbdf9a5040ec30fd4a719f3cc80  ibnkathir/chapter-86.json
+a47d126fd5f97362ef42e72500c624779f7f0d7d8cf39a6fa1b8b94fe143371c  ibnkathir/chapter-87.json
+87635f81794876b9d8c36dc66d9c3d75737d556d593fbd90fdd6d20a05fa1db1  ibnkathir/chapter-88.json
+f9c17adbd8f3e0c52506750d1830298a85bab8429a009fe9131cbacc63b9e757  ibnkathir/chapter-89.json
+4777356ab02a5f69b1b2d61bd96b71f372074511cfd7e305d72789b6ee2a6a15  ibnkathir/chapter-9.json
+d8391921cf80472298b63b0b07d68519050e752d2cf54b204a902bf557994be0  ibnkathir/chapter-90.json
+afe1d59d3948e13c47b1074d3e1f9b7f0465352385b6e3ffabe97a24d511414f  ibnkathir/chapter-91.json
+99fa59046af4fe261be05d6d488e0550026fc8ab972cb0c48d3851d91659920d  ibnkathir/chapter-92.json
+4a8ab2076e4566c9e5df041d0d20d4da633a912ecb8beebf28a0c590a4fe18f2  ibnkathir/chapter-93.json
+60d1fdef55e5d21384ec409c406c9263e6d686b8bef4c78628bce1c598ba319d  ibnkathir/chapter-94.json
+1c2c598b23a07baf7bb37f103516825af13a610a35ad524612dd1ed7a65dc64e  ibnkathir/chapter-95.json
+77518a0fb6c9d9ad809923f771e3ee87bc8aef010e4a690919fce8676e1764da  ibnkathir/chapter-96.json
+d19ffd4fd8dfa16c7302b4d74397cd87e683bf534d1c67dbdf2be5f8ad80f4c9  ibnkathir/chapter-97.json
+492b72a1def224459cb0b3aefb27c1f6e7f20e15d84a2755dc748729ef1f8bbc  ibnkathir/chapter-98.json
+a47c112a5a9ecf979b0e94eeb0e7c5922bf5ac7209aa8a0cc0fecd18cfcec854  ibnkathir/chapter-99.json
+41e11596135b1113b061f066dc4e7a10b8f13ccd0a5b2e26edc12420e7565912  baghawi/chapter-1.json
+a532731a2bccd6d8caf01713063e609bbc03e172bda1baa917b5511676daec3b  baghawi/chapter-10.json
+64d0f2ef3d4534d1cadc0bc5171e70a382ed76c518b066a41d4b6ba064a92e70  baghawi/chapter-100.json
+01a2c9af6aedcc43fc256449932a3f25bfdf4f13612c42a67e78908ad40ab6f8  baghawi/chapter-101.json
+775cebbfa2d3a1de5003b903d9e25772ebb57b3e3f7fd948e2033dc57878c29a  baghawi/chapter-102.json
+96075ae4e8e9dace930f6f408fb64fc1cce4439ea84a2f10da128385d73eccba  baghawi/chapter-103.json
+75145781d6c9ffc4071d436ae494e75d8ac01984f7147be707a84f0f68b508be  baghawi/chapter-104.json
+18443e8ab523bf3851741db2d8ffae7b9179285cd0985593ef69e0259bcb00f0  baghawi/chapter-105.json
+a02f191c2c2411f200cb336168724f3752a34485a105d357bdde3af63fbe8e96  baghawi/chapter-106.json
+c7fb0f7d0eec6e6073feeb9addd09e427edffecd76d2bd2df3a5dd1362227acb  baghawi/chapter-107.json
+87e38bf9d098f9c9bd2b494f9285f5a79aded22e2b5e38902967eac091ce2262  baghawi/chapter-108.json
+3d08b1381b680f686676f1b777b569e66794f5347b350604cb63b7e7a54c3e4d  baghawi/chapter-109.json
+378fd9ceef46cfefcbb3cf52d11d9a4e820cf265a72f24f3ca7bdb1485a4dadc  baghawi/chapter-11.json
+77047d5db8678f2b56bc9db77e4ab455a60a2c19baf62afe7e4016fad80ad24a  baghawi/chapter-110.json
+5d462d4692ccd3a2c47969cce9cddc1e1d602e77a0bdc5c5d465a6da3b856f2c  baghawi/chapter-111.json
+74f6ead5d672c0e8818e9ec1dc035ae143e5dab4be8e6ea95b0339ab92ec20f4  baghawi/chapter-112.json
+dcb6b90508490b50205ece1e67645c61ff12cab3f9d55bc5b0a0d54068a557a4  baghawi/chapter-113.json
+3e55083d6b94eeeb4e173a53fb9ea74c915cdf343489e951b982edd2a3e43fe5  baghawi/chapter-114.json
+6387866f9c3c6bf2fdf9ecb3ec31615283473f7e6f8c5ba9bfbd86e11ecf9dfc  baghawi/chapter-12.json
+19120a96222b6df5ede58c3c6eef38a33bc7c5b9501149c062103f112925f362  baghawi/chapter-13.json
+15289deaef66dfad2aade38f5c2f506b439cbc4a054327e7d8dbc89c4182fb85  baghawi/chapter-14.json
+5d63b59d357aaca2f5cff8bdfaa9077f3f210f6804f05738040e9e1f2a2afa51  baghawi/chapter-15.json
+8e12d6237278e937600cc5a9099bfd9b6e221ab9895c6e8a5556c7e362df0714  baghawi/chapter-16.json
+30a15d03ba2d6f4ba4997d08977effea41262b09bc821d7c4c9b97f35ed25f40  baghawi/chapter-17.json
+0c928a0d3a7eb32356d49aaa6c6e2b826bbb6816584d714c5bb98bf40d381e13  baghawi/chapter-18.json
+790991801aeaa94000c148954814e1acee7a1208ee64e74f424be78a1d5ee5e0  baghawi/chapter-19.json
+4130b6e056dadb1098fe04fa7ed3ae35d21fe1e3ed028962ce2bbba93bae4efc  baghawi/chapter-2.json
+94d137082b98395d98e6207aad17c078c21cb3691a41eb3bba77db2b07438c90  baghawi/chapter-20.json
+5de5e6f38d203d43c75ee65c69d11cf20ae08cf706f8b6070638ab63a050bbf0  baghawi/chapter-21.json
+9fb7c4308768a27ba5a944b597f259a3c3afdc06ed73db1ce13eff9c62ff762b  baghawi/chapter-22.json
+cedceb492c7f455d23f1cf19b672646ffd9ae98fe26e4aea7bf978d9f19d8674  baghawi/chapter-23.json
+c2472ca84624f42a42371fab5bdf20905902c15a3d558778fbd13bc68b1ccb97  baghawi/chapter-24.json
+ed79c6a80a4ba99c8e302d5408f70e23428dfe492ebc92d96ebce5581dd2c3c1  baghawi/chapter-25.json
+61e20ddbddd68c9db4a03ee68457e5acc7f9d3516e9e5b494b31bac86b5f729f  baghawi/chapter-26.json
+8746fd578975a77fcafb1964ddabc0747bf1cc67e57cd8a6225b04ec56315c86  baghawi/chapter-27.json
+0a8a1a19f624609864edece41f2b02b250c6f39eb164e5fcca581622e12bc553  baghawi/chapter-28.json
+5eee1bf00c7efdd1d45a0b4ce616af22aae549ff9a08dfd18330d62009618948  baghawi/chapter-29.json
+e5ecdd42f2355bb165ee44bf985ce82bf863abf474b9e26a77494654104e1aef  baghawi/chapter-3.json
+6a67a870c35784485b742f6db452aa6f50c03705a18dd5660f67319e73862182  baghawi/chapter-30.json
+ec33e6171d1639523013915988d6c0d193f40da2a7a3483d0226d286e845c481  baghawi/chapter-31.json
+e29d3d9a307d48fe14494e9dffa7fe69fff853b68aa90168459e593decc5ef0e  baghawi/chapter-32.json
+53f8d0280a862ae463ccb064f4fadb2797f4ee863cf232cf5f70148fe45dc400  baghawi/chapter-33.json
+8e4c191331ba4e813ebae751fde047aa32c98d0f0846fb0649d4e9a620d92ac4  baghawi/chapter-34.json
+5419bb0e5ffa9e5d4d543f05250571929095dd960165a627edbfaba12caae847  baghawi/chapter-35.json
+731b1bf4b768f1a1c4ef253013241bb4a2e3a6e944bf7a94e71588e5877c24db  baghawi/chapter-36.json
+13aaa522862da0d0b0e6c483c8c6fdbbcc793429634a57062fed295fbe49c7d1  baghawi/chapter-37.json
+097ff4c3d6c77a0492bc536486f20de38dc406acbf627aee3e4acc7cb095e76b  baghawi/chapter-38.json
+89bc6cc0ab1d36158ec9b144a81e944aadb6999fd336cadf671caa3b0af660da  baghawi/chapter-39.json
+92332a04e59bd9b3e8c44d61a280a5031e85b4f9e2b337dd16b27aea1531ef74  baghawi/chapter-4.json
+6009efe287fd94438453fd94221238c6f7a32f360326c08cbdde898d2a971a3e  baghawi/chapter-40.json
+ee5861a09394e87082a040576ccb47cc55de572ddfd286ae305ac0e58a2a4eca  baghawi/chapter-41.json
+1d65d229f77f46595271e149afa23d703d3e205442d2446b3ab4b34a13239209  baghawi/chapter-42.json
+9303f968cb10c983ecbcb5be48604fb0714a5d6252200ee93a92e9dc1b27dbb2  baghawi/chapter-43.json
+b3430b05e1e0fef05836563f74e3cdef7e336e2497d0ea66da7801ae3ff78495  baghawi/chapter-44.json
+5eabfdbc47639bc28d6305dfe40962352657f8a3dbefc35372dfad2a4852b9e6  baghawi/chapter-45.json
+e94a4faa1175e8b45fc48cd3ad634c76d948445677a3b7b5ce68ff82f038c59d  baghawi/chapter-46.json
+c8e5754f48ab84e120d86964a61685057e8186c84d75d3a31cdf11e1dc82b502  baghawi/chapter-47.json
+6de979c97288e29236af61414b6e377eabbb3a6c487a8ad8a6144059b82f0a1d  baghawi/chapter-48.json
+e48dfadb2d6379e4e847e0f3b4191cf7123d44d1fdff1708d8ba5bbd453fdc19  baghawi/chapter-49.json
+3972b1940b4e7319cc013accc223121f22c04bf3d4a76f0464cebaf8ea86569f  baghawi/chapter-5.json
+8bfd7dee7807b2634b65630cb31b90e1e63c7794b1888c5f5da64b582d966c71  baghawi/chapter-50.json
+998502d0650a5fab82cd75c1a34ef0df5c8a505675db4c12ad4b184535296e94  baghawi/chapter-51.json
+0fff8355deeac4aedbf9f2293758cf722410ec7225a36d59fd10e62d70867586  baghawi/chapter-52.json
+437e43092295a277b2fabd399969d2b4fd765620311f2fc783c3a4c74f810680  baghawi/chapter-53.json
+144bcb722a1676919426419653de26cc171a3c2fc3644c469d460d6ff76904e8  baghawi/chapter-54.json
+cbb2a6a51062ad492126d35e5e2c833eaf659c3c8c55073741922c29e90d040e  baghawi/chapter-55.json
+ab9e5ca0c5a88740f0d4bd0b1708103022b64a915312954e740a861d35ffdc47  baghawi/chapter-56.json
+d563ba6c6babeefcb01de8738c0f2603eabfdd982604c72837e2324be2adfa17  baghawi/chapter-57.json
+bb6137d591cc49621b9013b7e9f85fabd76c629a1e0eeb28334f69d749581f2e  baghawi/chapter-58.json
+0ab119c2fcd922c4d21bc94ea8fb8a8663000e67fb861ee7de6817a767ec661b  baghawi/chapter-59.json
+1b8129f86e08b502b35f4d285136d888819aa16c01cdf65c18209491c8bb738c  baghawi/chapter-6.json
+ab26964631f3472afae9464c05325f4310a3e104eb994d2e5d729c4df3cea979  baghawi/chapter-60.json
+b8fddb2596cb0cdc93475afb456283db9320bd981c62f0c2c8cf35f14f4fd850  baghawi/chapter-61.json
+eef02127df57c8fc0abd1bbeb395b1d7270faadde000967ef5f763f89dca861c  baghawi/chapter-62.json
+34886b6477b2034fffc96a166b987c3647922a12c293f4c1572696ddd5bdc7d9  baghawi/chapter-63.json
+4a5ab9bd726ae78c3fdd864aee1edc0c67af1e64753097b2cb599ea1c48158d4  baghawi/chapter-64.json
+fea363d5bbdf28b734f333d0fb187f2457a22020e0d1136134a3566f2059db13  baghawi/chapter-65.json
+e8e25d83e3e7576f4b5a8f6d2bfa9ecbc444b9c2e7379138b52c23f709f15b6e  baghawi/chapter-66.json
+3f7891fc9f282a1aec946a0c840e866151e7af18f9da4b7ce5c3e9bff662a512  baghawi/chapter-67.json
+f4ed768460b6fe259e39f0b517f09bcda2e67aa2a6671a93399c8e28dc4b2208  baghawi/chapter-68.json
+1e7f2c022891e64aa692060e4e554eb50c9100fdf946ad17bb55b82a1a361623  baghawi/chapter-69.json
+14a2425fe1b94bb85d3afa63c973d68c690acb60b0340deaa1852645f0566242  baghawi/chapter-7.json
+f9abd6c133c68ad66568280ba7a51f2901461ada57881b58339200ee1458a8c4  baghawi/chapter-70.json
+e430afa590420828eb351b7cb8036dd22661f3122d581f975e8ed81e5cb150b4  baghawi/chapter-71.json
+14d8aa62231eefa6dd9fa00caf6c171e165bd683adacc2482b949a32efc500fa  baghawi/chapter-72.json
+17731e0ca0103d21c8ce1f2ebfdd4791feb25cc5ef21b4a73bde1d95a1ed0c1d  baghawi/chapter-73.json
+dc99c467324f1630b9b5450dec93eb60818b3b9f386a3c9f2f47dd86105964cd  baghawi/chapter-74.json
+d4f076a23bf3894ec8ab7b847d6efa09a482d56c915c131735f6563ba3bb4f49  baghawi/chapter-75.json
+63dcffaee6c133ce1076285c10d4d71b0bfc5bbfecd0073b5744a5a7589de737  baghawi/chapter-76.json
+e463869329e65cbe33f4316236c20d02cab52e0632cc8fd192cb7c5e7dca4e2a  baghawi/chapter-77.json
+4976cc4ee2a8a5690272dfccb705f15b7408fda4ae75ee9afd5586e6b60c07eb  baghawi/chapter-78.json
+c0be423175b32fce305eb00b529fee6a20beafef7f1c3cd17955e2aaec4a15c5  baghawi/chapter-79.json
+113de17c5c3a1e4ada0363a498376b68a5c87296f8b3280475444f509201c5dd  baghawi/chapter-8.json
+cf2a619914584a1cd5276ec19acff3039c6f72a4f4b00dd317fb51fead39153e  baghawi/chapter-80.json
+ee0f3f5371c0ca1026a71034d0fbb67cccb27a789fe69fa874f310bfbdf0f5b0  baghawi/chapter-81.json
+be1258ea66662f6c670cad965976962f7d6334e3e9a8e00a425164748b93f2cd  baghawi/chapter-82.json
+4cf6e81f386667f2eb3ea92810b405f8b3948846f832e5ce59648199ece30b6b  baghawi/chapter-83.json
+921ebf9fcbb2814facb47d247b3fdce05a6484ca2ad65a0ab48e6151ac633565  baghawi/chapter-84.json
+15b91e4db395af55844e2ec338f9f0eaf46a8f51e9f0228a156573628dfe772d  baghawi/chapter-85.json
+586b29c1138756ec31dd13c697bba3bdbc3f68d8ea6c7ced97cd5f20738aa685  baghawi/chapter-86.json
+72206b6675bb8d424beb1b81cf52e774f0f86695e395f73b2bd1fc2ca774f9f5  baghawi/chapter-87.json
+8d09dee726d3a2bea026d656d2767fa5c9576435525592840cadee24cb0c28bf  baghawi/chapter-88.json
+48d3e6914d719d099f417a5211b3a7c191e74c13b4b447a1708aac38e74f52da  baghawi/chapter-89.json
+6bce5702b7a9f5e5606af30a5e3fe1e8c667f602d95fde6e5be0695b80a217cd  baghawi/chapter-9.json
+5396ba5c58bf36c20969e14a3f9da06415c3bf3b9e234c12bb70947556e2dceb  baghawi/chapter-90.json
+08652b1ad468d5fe55d88351a10a7faa5dfa031a3502c9b69d99c087a273f37a  baghawi/chapter-91.json
+76c54e3c1a5f74d4987786b62bbafcd854ee64be2fea538b4dc1143f66bcf840  baghawi/chapter-92.json
+9f2d4d6ad6f9bfc8a7198e2fd1030dd8d4a5d36730ff86daa74e54fcefd59db0  baghawi/chapter-93.json
+120e7e1fa89aec834c65fc39c1d2c8bed2285a4994508d174944758b523506c3  baghawi/chapter-94.json
+127cfeceb532bcfbdbfb5a3ed657f32dbe2b9e3207ac5037fc7f4e66bbf355f0  baghawi/chapter-95.json
+7e753e816e06759f92e2ca67665525af5cbbd4ec3da9207afd1ff5ac0054dea4  baghawi/chapter-96.json
+f0c63917f67e31eb7b120f114d7cd66caf33792c9ed853400d0bfd5c8dd7c4fa  baghawi/chapter-97.json
+a494439e0420df17eed785e60dfac5893c2cabf5a43ea13cb281f578b1ce0735  baghawi/chapter-98.json
+33c921f1eac76a0b329325f42f2d27cab306eeccbd24f634e43a45d47c9b3b60  baghawi/chapter-99.json
+```
+
+#### `content/refs/adhkar/manifest.json`  ·  1.6KB
+
+```json
+{
+  "generated": "2026-10-12",
+  "sources": [
+    {
+      "name": "حصن المسلم من أذكار الكتاب والسنة (نص)",
+      "author": "د. سعيد بن علي بن وهف القحطاني (حرّر في صفر 1409هـ)",
+      "status": "نص ديني في الملكية العامة (توزيع حر عبر مجمع الملك فهد)",
+      "dataset": "osamayy/azkar-db",
+      "file": "azkar_obj.json",
+      "commit": "fbdfa017782c",
+      "commit_date": "2024-09-19",
+      "sha256": "a8daa71a118a9a659effb361a826e99fe7e2e1dec391fe77735f8e17c2be62b3",
+      "license": "لا رخصة صريحة في المستوديو — المخاطرة موثقة؛ المحتوى نص ديني عام واعتمدناه بعد تحقق مستقل (انظر ADHKAR-IMPORT-REPORT.md)",
+      "items": 345
+    },
+    {
+      "name": "أذكار الصباح — تحقق مستقل (تكرار/فضل/مصدر)",
+      "dataset": "Seen-Arabic/Morning-And-Evening-Adhkar-DB",
+      "file": "morning_seen_ar.json",
+      "commit": "29d7623fede52eca835a789025dfda866e8cfe44",
+      "sha256": "9e0dd6a10d26ddc0e2b36b94098c287644996c7f81b707f8ad24f1ce40b8c821",
+      "license": "MIT (LICENSE_seen_arabic.txt)",
+      "items": 34
+    }
+  ],
+  "rules": [
+    "آيات القرآن داخل الأذكار تُعرض في التطبيق من حزمة Tanzil المعتمدة (content/quran-data.json) — لا من هذا المصدر",
+    "count: القيمة الرقمية إن وُجدت، وإلا 1 (ذكر/دعاء يُقال مرة) — قاعدة موثقة",
+    "التشكيل يُحفظ كما في المصدر (فصحى مشكّلة)"
+  ]
+}
+```
+
+#### `content/refs/adhkar/LICENSE_seen_arabic.txt`  ·  1.0KB
+
+```
+MIT License
+
+Copyright (c) 2024 Seen Arabic
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 9) ملاحظات سنبورك/أدوات (تُوفر وقت المحاولة والخطأ)
+
+- **quran.com:** `GET /api/v4/tafsirs/{id}/by_chapter/{n}?per_page=300` (إلا صُفّح 10/صفحة بصمت!)؛ `by_ayah` يعيد 503 دائمًا (Varnish) — لا تعتمد عليه. المعرّفات: 14 ابن كثير، 94 البغوي (كامل)، 16 ميسّر (جزئي — رُفض).
+- **RN-web FlatList:** العناصر البعيدة لا تُرسم أصلًا؛ `scrollToIndex`/`scrollToEnd` لا تعمل — الحل المطبّق: حلقة `scroller.scrollTop = scrollHeight` (250ms × ≤8) حتى يظهر الهدف ثم `scrollIntoView` (انظر `surah-screen.tsx`).
+- **أرقام هندية:** أي تعديل على خيط التحويل يجب التحقق منه بـ hex (U+0660–0669) — فحص انحداري موجود في `tafsir-stage4.test.ts` [8].
+- **المَدّ U+0670 في الرسم العثماني:** بعد التاتيل/الواو/الياء = بدل عن الألف، وسواها = مدّ صوتي — لا تُقارن نصين دون تطبيع (انظر `orthoNorm` في `import-adhkar.mjs`).
+- **بحث/تطبيع:** حقل `search` في الحزم مُطبَّع (لا يُعرض)؛ العرض دائمًا من `text` العثماني حرفيًا.
+
+---
+
+*أُنشئ آليًا من المستودع عند commit `9b98f3b` — 2026-10-12. رفيق القرآن الكريم © إيهاب عجور أبو الأمير.*

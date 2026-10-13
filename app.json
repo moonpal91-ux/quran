@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "رفيق القرآن الكريم",
+    "slug": "quran-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "qurancompanion",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ihabajour.qurancompanion"
+    },
+    "android": {
+      "package": "com.ihabajour.qurancompanion",
+      "adaptiveIcon": {
+        "backgroundColor": "#145A46",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "appVersion": "0.1.0",
+      "databaseSchemaVersion": 1,
+      "exportFormatVersion": 1,
+      "developer": "إيهاب عجور أبو الأمير"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

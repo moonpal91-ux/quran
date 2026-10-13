@@ -1,0 +1,37 @@
+{
+  "name": "quran-companion",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-navigation/bottom-tabs": "^7.20.0",
+    "@react-navigation/native": "^7.5.0",
+    "@react-navigation/native-stack": "^7.20.0",
+    "@realm/react": "^0.20.0",
+    "expo": "~57.0.27",
+    "expo-clipboard": "~57.0.2",
+    "expo-font": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "^0.21.2",
+    "realm": "^20.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test:realm": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build/content',{recursive:true});require('fs').copyFileSync('content/quran-data.json','.test-build/content/quran-data.json');require('fs').copyFileSync('content/adhkar-data.json','.test-build/content/adhkar-data.json')\" && node .test-build/tests/realm-stage0.test.js && node .test-build/tests/repositories-stage1.test.js && node .test-build/tests/quran-stage2.test.js && node .test-build/tests/library-stage3.test.js && node .test-build/tests/tafsir-stage4.test.js && node .test-build/tests/adhkar-stage5.test.js",
+    "test:realm:clean": "rm -rf .test-build .test-data"
+  },
+  "private": true
+}
