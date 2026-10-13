@@ -183,15 +183,23 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
   const m2 = entries.length;
   check(`عدد ملفات الفهرس في HANDOFF §8 معقول (${m2})`, m2 >= 40, 'تحقّق من صيغة الفهرس');
 
+  // سجلات حيّة: يُتحقق من وجودها فقط، لأن أحجامها تنمو طبيعيًا مع كل مرحلة
+  // (الحجم المُثبّت في HANDOFF §8 يعكس لحظة كتابة الدليل، لا الحجم النهائي).
+  const SIZE_EXEMPT = new Set(['STAGE-PROGRESS.md']);
   let missing = 0;
   let sizeMismatch = 0;
   const missingList = [];
   const sizeList = [];
+  const exemptList = [];
   for (const e of entries) {
     const p = path.join(ROOT, e.file);
     if (!existsSync(p)) {
       missing++;
       missingList.push(e.file);
+      continue;
+    }
+    if (SIZE_EXEMPT.has(e.file)) {
+      exemptList.push(`${e.file} (سجل مراحل حيّ — ${humanKB(statSync(p).size)}KB بدل ~${e.kb}KB المُثبّتة)`);
       continue;
     }
     const bytes = statSync(p).size;
@@ -203,11 +211,13 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
     }
   }
   check(`كل ملفات §8 موجودة (${entries.length - missing}/${entries.length})`, missing === 0, missingList.join(' | '));
+  const sizeBase = entries.length - missing - exemptList.length;
   check(
-    `أحجام ملفات §8 مطابقة (${entries.length - missing - sizeMismatch}/${entries.length - missing})`,
+    `أحجام ملفات §8 مطابقة (${sizeBase - sizeMismatch}/${sizeBase})`,
     sizeMismatch === 0,
     sizeList.join(' | '),
   );
+  if (exemptList.length) console.log(`  ~ ${exemptList.join(' | ')}`);
 }
 
 // ───────────────────────────── [2] بصمات المواد الخام المثبتة

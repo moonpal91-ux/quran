@@ -50,3 +50,11 @@ ios/
 
 # مخرجات إعادة البناء (bootstrap-rebuild)
 .bootstrap-out/
+
+# artifacts بناء الوحدة الأصلية لـ Realm (17MB — تُبنى بـ tools/build-realm-node.sh)
+tools/realm-prebuilds/
+
+# أرشيفات التسليم (quran-companion-*.zip) + الأرشيف الأصلي المرفوع
+*.zip
+
+# حزم التسليم المولَّدة كبيرة الحجم (تُعاد بـ scripts/generate-preview-html.mjs)
