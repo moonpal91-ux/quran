@@ -112,7 +112,7 @@ const GROUPS = [
   ]],
   ['8.9) docs (توثيق المشروع)', [
     'docs/CONVENTIONS.md', 'docs/FONTS.md', 'docs/SCREEN-MAP.md',
-    'docs/TECHNICAL-CONSTRAINTS.md', 'docs/WEB-PREVIEW.md',
+    'docs/TECHNICAL-CONSTRAINTS.md', 'docs/WEB-PREVIEW.md', 'docs/PWA.md',
   ]],
   ['8.10) android (ملفات الإعدادات — الثنائيات في الأرشيف)', [
     'android/build.gradle', 'android/settings.gradle', 'android/gradle.properties',
@@ -123,6 +123,10 @@ const GROUPS = [
     'android/app/src/main/java/com/ihabajour/qurancompanion/MainApplication.kt',
     'android/app/src/main/res/values/colors.xml', 'android/app/src/main/res/values/strings.xml',
     'android/app/src/main/res/values/styles.xml', 'android/.gitignore',
+  ]],
+  ['8.13) PWA (تطبيق ويب قابل للتثبيت ويعمل أوفلاين)', [
+    'public/manifest.webmanifest', 'public/sw.js',
+    'scripts/generate-pwa-icons.mjs', 'scripts/prepare-pwa.mjs',
   ]],
   ['8.12) tools + scripts (بناء الوحدة الأصلية + حزم التسليم)', [
     'tools/build-realm-node.sh', 'scripts/package-archive.sh',
@@ -181,6 +185,7 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
   → \`tools/realm-prebuilds/linux-x64/realm.node\` (17.4MB) — الاختبارات 155/155 بها.
 - **حزم التسليم:** \`HANDOFF-*.md\` (هذا الملف) + \`app-preview.html\` (معاينة بمحتوى حقيقي)
   + \`quran-companion-*.zip\` (كل الملفات) — تُنتَج بـ \`scripts/package-archive.sh\`.
+- **PWA:** \`npm run build:pwa\` ينتج تطبيق ويب قابل للتثبيت يعمل أوفلاين (انظر §8.13 و\`docs/PWA.md\`).
 
 ---
 
@@ -273,6 +278,10 @@ ${fence(screenMap)}
 - **الخطوط:** الأربعة مُستعادة من مصادرها الرسمية بأحجام مطابقة حرفيًا لـ \`docs/FONTS.md\`.
 - **\`android/\` (CNG):** أُعيد توليد الـ 14 ملفًا المُثبَّتة في §8.10 بـ \`expo prebuild --platform android\`
   — الأحجام مطابقة للحظة كتابة الدليل (مثل \`app/build.gradle\` 8218B، \`MainActivity.kt\` 2198B).
+- **PWA (2026-10-13):** التطبيق يُصدَّر كتطبيق ويب قابل للتثبيت ويعمل أوفلاين —
+  \`public/manifest.webmanifest\` + \`public/sw.js\` (تنقّل: الشبكة ثم الذاكرة · أصول:
+  الذاكرة أولًا + تحديث بالخلفية) + أيقونات مرسومة آليًا من رموز التصميم + سكربتا
+  \`generate-pwa-icons.mjs\` و\`prepare-pwa.mjs\` + سكربتات npm (\`build:pwa\`/\`serve:pwa\`).
 - **بناء realm.node مؤتمت:** \`tools/build-realm-node.sh\` يوثّق كل خطوة (git clone، OpenSSL من المصدر،
   مواءمة مواصفة الربط، cmake/ninja) — قابل للتكرار في أي بيئة محجوبة.
 
@@ -284,9 +293,12 @@ ${fence(screenMap)}
 2. **الخطط/التنزيلات (مرحلة 6):** الهيكلان موجودان (\`plans-screen\`/\`downloads-screen\`) بسجلات فارغة.
 3. **الأصول الثنائية الناقصة:** 6 أيقونات (icon/splash/adaptive/favicon) — لم تصل مع \`BIN-RAW.md\`.
    \`expo prebuild\` يتوقف عندها؛ استُخدمت أيقونات مؤقتة لإنتاج \`android/\` ثم حُذفت (لا تُشحن أصول مُختلقة).
+   أيقونات **PWA** في \`public/icons/\` مرسومة آليًا من رموز التصميم (بديلة حتى وصول الأصول الأصلية).
 4. **معاني الكلمات (قرار المستخدم: مؤجلة)** — لا زر ولا بيانات.
 5. **نمط «صفحات المصحف» (readingMode):** الحقل موجود؛ العرض المتتابع فقط حاليًا.
 6. **التحقق على جهاز حقيقي:** تباين WCAG + أحجام لمس + Share Sheet — مؤجَّل موثَّق.
+7. **PWA:** فتح المتصفح البشري للتأكد من زر «التثبيت» ووضع الطيران (لا متصفح في بيئة
+   التنفيذ) + تحسين محتمل: إخراج حزمة التفسير (23MB) من الحزمة إلى ملف يُحمَّل عند الطلب.
 
 ## 6) قرارات مستخدم سارية (لا تُعاد بدون سؤال)
 

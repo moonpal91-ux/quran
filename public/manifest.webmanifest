@@ -1,0 +1,37 @@
+{
+  "id": "./",
+  "name": "رفيق القرآن الكريم",
+  "short_name": "رفيق القرآن",
+  "description": "مصحف بالرسم العثماني مع التفسير والأذكار — يعمل دون اتصال، بلا حساب ولا تتبّع.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "background_color": "#F8F6F0",
+  "theme_color": "#145A46",
+  "categories": ["books", "education", "lifestyle"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

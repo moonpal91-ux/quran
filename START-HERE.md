@@ -15,6 +15,7 @@
 | `android/` | ملفات الإعدادات + الثنائيات (مولَّدة عبر CNG) |
 | `assets/fonts/` | الخطوط الأربعة (Tajawal + Amiri Quran — OFL) |
 | `tools/build-realm-node.sh` | سكربت بناء الوحدة الأصلية لـ Realm من المصدر (للبيئات المحجوبة) |
+| `public/` + `docs/PWA.md` | ملفات PWA (البيان + عامل الخدمة + الأيقونات) وشرحها |
 | `preview-screenshots/` | 32 لقطة QA من المراحل السابقة |
 
 ## خطوات التشغيل (من الصفر)
@@ -47,15 +48,17 @@ cp tools/realm-prebuilds/linux-x64/realm.node node_modules/realm/prebuilds/node/
 افتح `app-preview.html` في أي متصفح. المحتوى حقيقي (من الحزم المُعتمدة نفسها)،
 لكنها **معاينة ثابتة**: Realm والتنزيلات والاستماع تعمل داخل التطبيق على الجهاز فقط.
 
-## تشغيل التطبيق نفسه على الويب (بعد `npm install`)
+## تشغيل التطبيق نفسه على الويب + تثبيته كـ PWA (بعد `npm install`)
 
 ```bash
-NODE_OPTIONS=--max-old-space-size=3000 npx expo export --platform web
-cd dist && python3 -m http.server 8081 --bind 0.0.0.0
+npm run build:pwa      # expo export --platform web + node scripts/prepare-pwa.mjs
+npm run serve:pwa      # خادم ساكن على 0.0.0.0:8081 من dist
 ```
 
-يُنتج `dist/` (حزمة JS ≈71MB لأن حزمة التفسير 23MB مُضمَّنة) — مُجرَّب في
-2026-10-13: التصدير ينجح والتطبيق يُحمَّل في المتصفح.
+يُنتج `dist/` (حزمة JS ≈71MB لأن حزمة التفسير 23MB مُضمَّنة) + `manifest.webmanifest`
++ `sw.js` + `icons/`: **تطبيق ويب قابل للتثبيت يعمل دون اتصال** بعد أول تحميل
+(التنقّل: الشبكة ثم الذاكرة · الأصول: الذاكرة أولًا مع تحديث بالخلفية).
+التفاصيل في `docs/PWA.md`. مُجرَّب في 2026-10-13: البناء يكمل، وكل الأصول تُخدَّم بـ 200.
 
 ## الحالة والمتبقي
 
