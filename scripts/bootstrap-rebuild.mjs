@@ -185,7 +185,18 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
 
   // سجلات حيّة: يُتحقق من وجودها فقط، لأن أحجامها تنمو طبيعيًا مع كل مرحلة
   // (الحجم المُثبّت في HANDOFF §8 يعكس لحظة كتابة الدليل، لا الحجم النهائي).
-  const SIZE_EXEMPT = new Set(['STAGE-PROGRESS.md']);
+  const SIZE_EXEMPT = new Set([
+    'STAGE-PROGRESS.md',   // سجل مراحل حيّ
+    // ملفات نُفِّذت بعد كتابة الدليل: كان الدليل يورد حجم «الهيكل» (stub)،
+    // والتنفيذ الفعلي للمرحلتين 5 و6 كبّرها — النمو مقصود ومُوثَّق، لا تلف.
+    'src/database/realm/realm.ts',            // + ترحيل 2→3
+    'src/database/realm/schemas.ts',          // + AudioProgress + حقول الصوت
+    'src/database/realm/types.ts',            // + أنواع الصوت
+    'src/features/audio/audio-screen.tsx',    // شاشة الاستماع كاملة
+    'src/features/home/home-screen.tsx',      // + بطاقة «تابع استماعك»
+    'src/features/library/downloads-screen.tsx', // شاشة التنزيلات كاملة
+    'docs/SCREEN-MAP.md',                     // + وصف شاشات المرحلة 6
+  ]);
   let missing = 0;
   let sizeMismatch = 0;
   const missingList = [];
@@ -199,7 +210,7 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
       continue;
     }
     if (SIZE_EXEMPT.has(e.file)) {
-      exemptList.push(`${e.file} (سجل مراحل حيّ — ${humanKB(statSync(p).size)}KB بدل ~${e.kb}KB المُثبّتة)`);
+      exemptList.push(`${e.file} (${humanKB(statSync(p).size)}KB بدل ~${e.kb}KB المُثبّتة — نموّ مقصود بالتنفيذ)`);
       continue;
     }
     const bytes = statSync(p).size;
