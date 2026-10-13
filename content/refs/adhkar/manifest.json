@@ -1,0 +1,31 @@
+{
+  "generated": "2026-10-12",
+  "sources": [
+    {
+      "name": "حصن المسلم من أذكار الكتاب والسنة (نص)",
+      "author": "د. سعيد بن علي بن وهف القحطاني (حرّر في صفر 1409هـ)",
+      "status": "نص ديني في الملكية العامة (توزيع حر عبر مجمع الملك فهد)",
+      "dataset": "osamayy/azkar-db",
+      "file": "azkar_obj.json",
+      "commit": "fbdfa017782c",
+      "commit_date": "2024-09-19",
+      "sha256": "a8daa71a118a9a659effb361a826e99fe7e2e1dec391fe77735f8e17c2be62b3",
+      "license": "لا رخصة صريحة في المستوديو — المخاطرة موثقة؛ المحتوى نص ديني عام واعتمدناه بعد تحقق مستقل (انظر ADHKAR-IMPORT-REPORT.md)",
+      "items": 345
+    },
+    {
+      "name": "أذكار الصباح — تحقق مستقل (تكرار/فضل/مصدر)",
+      "dataset": "Seen-Arabic/Morning-And-Evening-Adhkar-DB",
+      "file": "morning_seen_ar.json",
+      "commit": "29d7623fede52eca835a789025dfda866e8cfe44",
+      "sha256": "9e0dd6a10d26ddc0e2b36b94098c287644996c7f81b707f8ad24f1ce40b8c821",
+      "license": "MIT (LICENSE_seen_arabic.txt)",
+      "items": 34
+    }
+  ],
+  "rules": [
+    "آيات القرآن داخل الأذكار تُعرض في التطبيق من حزمة Tanzil المعتمدة (content/quran-data.json) — لا من هذا المصدر",
+    "count: القيمة الرقمية إن وُجدت، وإلا 1 (ذكر/دعاء يُقال مرة) — قاعدة موثقة",
+    "التشكيل يُحفظ كما في المصدر (فصحى مشكّلة)"
+  ]
+}

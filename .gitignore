@@ -47,3 +47,6 @@ ios/
 # artifacts اختبار البيانات
 .test-data/
 .test-build/
+
+# مخرجات إعادة البناء (bootstrap-rebuild)
+.bootstrap-out/
