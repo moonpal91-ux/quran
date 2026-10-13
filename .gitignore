@@ -51,10 +51,7 @@ ios/
 # مخرجات إعادة البناء (bootstrap-rebuild)
 .bootstrap-out/
 
-# artifacts بناء الوحدة الأصلية لـ Realm (17MB — تُبنى بـ tools/build-realm-node.sh)
-tools/realm-prebuilds/
-
-# أرشيفات التسليم (quran-companion-*.zip) + الأرشيف الأصلي المرفوع
-*.zip
-
-# حزم التسليم المولَّدة كبيرة الحجم (تُعاد بـ scripts/generate-preview-html.mjs)
+# ملاحظة: الوحدة الأصلية المبنية (tools/realm-prebuilds/) وأرشيفات التسليم (*.zip)
+# ليست مُهمَلة عن عمد — بيئة الاستضافة لا تحفظ الملفات المُهمَلة، ونحن نحتاجها
+# بين الجلسات. تُستثنى من الالتزامات بمسارات صريحة:
+#   git add -A -- . ':(exclude)*.zip' ':(exclude)tools/realm-prebuilds'

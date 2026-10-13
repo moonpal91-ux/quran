@@ -122,6 +122,21 @@ export function getAyah(surahNumber: number, ayahNumber: number): AyahInfo | und
 }
 
 /**
+ * الرقم العالمي للآية (1..6236) كما يستخدمه خادم التلاوات آيةً بآية.
+ * الحزمة مرتّبة ترتيب المصحف، و`startLine` هو موضع أول آية في السورة،
+ * فالرقم العالمي = startLine + رقم الآية داخل السورة.
+ */
+export function getGlobalAyahNumber(surahNumber: number, ayahInSurah: number): number {
+  validateBundle();
+  const info = getSurahInfo(surahNumber);
+  if (!info) throw new Error(`سورة غير موجودة: ${surahNumber}`);
+  if (ayahInSurah < 1 || ayahInSurah > info.ayahCount) {
+    throw new Error(`رقم آية خارج مجال السورة ${surahNumber}: ${ayahInSurah}`);
+  }
+  return info.startLine + ayahInSurah;
+}
+
+/**
  * تطبيع عربي للبحث فقط (مطابق لخوارزمية الاستيراد — موثقة في manifest.searchNormalization):
  * حذف التشكيل/التطويل/علامات المصحف، توحيد الألف (آأإٱ→ا)، ة→ه، ى→ي.
  * يُطبَّق على الاستعلام ليطابق حقل search المشتق؛ النص الأصلي لا يُعرض مطبعًا أبدًا (03-REALM §5).

@@ -61,6 +61,21 @@ export async function openAppRealm(path?: string): Promise<Realm> {
             rec.mushafBg = 'theme';
           }
         }
+        // 2 → 3: حقول الصوت الاختيارية في AppSettings (المرحلة 6)
+        // الحقول الاختيارية جديدة بالكامل — القيم الافتراضية تُضبط صراحةً
+        // حتى لا يبقى أي سجل قديم بلا قيمة (لا `undefined` في Realm).
+        if (o.schemaVersion !== undefined && o.schemaVersion < 3) {
+          const recs = Array.from(n.objects('AppSettings'));
+          for (const rec of recs) {
+            // ملاحظة مقيسة: Realm يُرجع `null` (لا `undefined`) للحقل الاختياري
+            // المضاف حديثًا على سجل قديم — لذا الفحص يجب أن يغطي الاثنين.
+            if (rec.preferredReciterId == null) rec.preferredReciterId = null;
+            if (rec.audioBitrate == null) rec.audioBitrate = '128';
+            if (rec.audioPlaybackRate == null) rec.audioPlaybackRate = 1.0;
+            if (rec.audioRepeatMode == null) rec.audioRepeatMode = 'off';
+            if (rec.audioMode == null) rec.audioMode = 'surah';
+          }
+        }
         console.warn(`[realm] ترحيل المخطط من ${o.schemaVersion} إلى ${n.schemaVersion}`);
       },
     });

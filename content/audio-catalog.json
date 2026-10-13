@@ -1,0 +1,342 @@
+{
+  "manifest": {
+    "contentType": "audio-catalog",
+    "sourceName": "AlQuran Cloud CDN (cdn.islamic.network) + api.alquran.cloud",
+    "sourceUrl": "https://alquran.cloud/cdn",
+    "licenseNote": "لم تُصرَّح برخصة صريحة على صفحة وثيقة الـ CDN أو صفحة المصدر؛ موقع quranicaudio.com (التابع للمشروع) ينص على «استخدام شخصي مجاني — يُمنع الاستخدام التجاري». قرارنا: الاستخدام داخل التطبيق للأفراد، بلا إعادة بيع للملفات، مع ذكر المصدر داخل التطبيق.",
+    "licenseReviewRequired": true,
+    "ranges": {
+      "ayah": {
+        "min": 1,
+        "max": 6236
+      },
+      "surah": {
+        "min": 1,
+        "max": 114
+      }
+    },
+    "reciterCount": 13,
+    "rawFile": "content/refs/audio/alquran-cloud-cdn.json",
+    "rawSha256": "975963a5ddb43a0ba74ff32cbccf118e035d9c3dca4e7ae5343ee34fd9011551",
+    "verification": {
+      "status": "unverified-network-blocked",
+      "method": "scripts/verify-audio-sources.mjs (HEAD على عيّنة)",
+      "checkedAt": "2026-10-13T10:40:05.025Z",
+      "sample": {
+        "ayahs": [
+          1,
+          262,
+          6236
+        ],
+        "surahs": [
+          1,
+          114
+        ]
+      },
+      "verifiedReciters": 0,
+      "totalChecked": 13,
+      "note": "تعذّر الاتصال بالمضيف من بيئة التنفيذ — لم يُسجَّل أي تحقق. شغّل السكربت على جهاز متصل."
+    },
+    "generatedAt": "2026-10-13T10:39:15.749Z"
+  },
+  "patterns": {
+    "ayah": "https://cdn.islamic.network/quran/audio/{bitrate}/{edition}/{number}.mp3",
+    "surah": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/{edition}/{number}.mp3"
+  },
+  "bitrates": [
+    "192",
+    "128",
+    "64",
+    "48",
+    "40",
+    "32"
+  ],
+  "reciters": [
+    {
+      "id": "ar.alafasy",
+      "nameAr": "مشاري راشد العفاسي",
+      "nameEn": "Mishary Rashid Alafasy",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.alafasy/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.alafasy/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": null
+    },
+    {
+      "id": "ar.husary",
+      "nameAr": "محمود خليل الحصري",
+      "nameEn": "Mahmoud Khalil Al-Husary",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.husary/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.husary/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": null
+    },
+    {
+      "id": "ar.minshawi",
+      "nameAr": "محمد صديق المنشاوي",
+      "nameEn": "Mohamed Siddiq al-Minshawi",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.minshawi/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.minshawi/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "صنّفته واجهة API كـ translation بينما تضعه وثيقة الـ CDN ضمن تلاوات الآية (Murattal) — يُعتمد تصنيف الـ CDN للروابط."
+    },
+    {
+      "id": "ar.minshawimujawwad",
+      "nameAr": "محمد صديق المنشاوي (مجوَّد)",
+      "nameEn": "Al-Minshawi (Mujawwad)",
+      "styleAr": "مجوَّد",
+      "styleEn": "Mujawwad",
+      "defaultBitrate": "64",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.minshawimujawwad/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.minshawimujawwad/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "نفس ملاحظة الإصدار السابق."
+    },
+    {
+      "id": "ar.sudais",
+      "nameAr": "عبدالرحمن السديس",
+      "nameEn": "Abdul Rahman Al-Sudais",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "192",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.sudais/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.sudais/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "معرّف الـ CDN (ar.sudais) يختلف عن معرّف واجهة API (ar.abdurrahmaansudais) — تُبنى الروابط على معرّف الـ CDN."
+    },
+    {
+      "id": "ar.shuraim",
+      "nameAr": "سعود الشريم",
+      "nameEn": "Saud Al-Shuraim",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.shuraim/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.shuraim/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "معرّف الـ CDN (ar.shuraim) يختلف عن معرّف واجهة API (ar.saoodshuraym)."
+    },
+    {
+      "id": "ar.abdulbasit",
+      "nameAr": "عبد الباسط عبد الصمد",
+      "nameEn": "Abdul Basit Abdul Samad",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "192",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.abdulbasit/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.abdulbasit/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "معرّف الـ CDN (ar.abdulbasit) يختلف عن معرّف واجهة API (ar.abdulsamad / ar.abdulbasitmurattal)."
+    },
+    {
+      "id": "ar.abdulbasitmujawwad",
+      "nameAr": "عبد الباسط عبد الصمد (مجوَّد)",
+      "nameEn": "Abdul Basit (Mujawwad)",
+      "styleAr": "مجوَّد",
+      "styleEn": "Mujawwad",
+      "defaultBitrate": "192",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.abdulbasitmujawwad/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.abdulbasitmujawwad/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": null
+    },
+    {
+      "id": "ar.ajamy",
+      "nameAr": "أحمد بن علي العجمي",
+      "nameEn": "Ahmed ibn Ali al-Ajamy",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.ajamy/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.ajamy/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "معرّف الـ CDN (ar.ajamy) يختلف عن معرّف واجهة API (ar.ahmedajamy)."
+    },
+    {
+      "id": "ar.muhammadayoub",
+      "nameAr": "محمد أيوب",
+      "nameEn": "Muhammad Ayyoub",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.muhammadayoub/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.muhammadayoub/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "معرّف الـ CDN (ar.muhammadayoub) يختلف عن معرّف واجهة API (ar.muhammadayyoub / ar.muhammadayyub)."
+    },
+    {
+      "id": "ar.hudhaify",
+      "nameAr": "علي بن عبدالرحمن الحذيفي",
+      "nameEn": "Ali Al-Hudhaify",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.hudhaify/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.hudhaify/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": null
+    },
+    {
+      "id": "ar.muhammadjibreel",
+      "nameAr": "محمد جبريل",
+      "nameEn": "Muhammad Jibreel",
+      "styleAr": "مرتَّل",
+      "styleEn": "Murattal",
+      "defaultBitrate": "128",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.muhammadjibreel/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.muhammadjibreel/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": null
+    },
+    {
+      "id": "ar.parhizgar",
+      "nameAr": "شهریار پرهیزگار",
+      "nameEn": "Shahriar Parhizgar",
+      "styleAr": "مُعلِّم",
+      "styleEn": "Muallim",
+      "defaultBitrate": "64",
+      "bitrates": [
+        "192",
+        "128",
+        "64",
+        "48",
+        "40",
+        "32"
+      ],
+      "ayahUrl": "https://cdn.islamic.network/quran/audio/{bitrate}/ar.parhizgar/{number}.mp3",
+      "surahUrl": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/ar.parhizgar/{number}.mp3",
+      "sourceId": "alquran-cloud-cdn",
+      "ayahVerified": false,
+      "surahVerified": false,
+      "notes": "جدول وثيقة الـ CDN يذكر أمام هذا المعرّف اسم «محمود خليل الحصري» — وهو خطأ نسخ ظاهر في المصدر (ar.parhizgar = شهریار پرهیزگار عند واجهة API). اعتُمد اسم واجهة API، والملاحظة موثّقة."
+    }
+  ]
+}

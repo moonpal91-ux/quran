@@ -46,6 +46,37 @@ export interface AppSettings {
   notificationsEnabled: boolean;
   morningReminderTime?: string | null;
   eveningReminderTime?: string | null;
+  // ── المرحلة 6 (الاستماع)
+  /** القارئ المفضَّل (معرّف فهرس التلاوات) */
+  preferredReciterId?: string | null;
+  /** معدل البِتّ المفضَّل للتنزيل */
+  audioBitrate?: string | null;
+  /** سرعة التشغيل */
+  audioPlaybackRate?: number | null;
+  /** نمط التكرار: بلا تكرار / تكرار الآية / تكرار السورة */
+  audioRepeatMode?: AudioRepeatMode | null;
+  /** نمط الملفات: ملف سورة كامل / ملف لكل آية */
+  audioMode?: AudioMode | null;
+  updatedAt: Date;
+}
+
+/** نمط تكرار التشغيل (المرحلة 6) */
+export type AudioRepeatMode = 'off' | 'ayah' | 'surah';
+
+/** نمط ملفات التلاوة: ملف واحد للسورة، أو ملف لكل آية */
+export type AudioMode = 'surah' | 'ayah';
+
+/** سجل تقدّم الاستماع — آخر موضع لكل (قارئ، سورة) — المرحلة 6 */
+export interface AudioProgress {
+  /** المفتاح: `<reciterId>:<surahNumber>` */
+  id: string;
+  reciterId: string;
+  surahNumber: number;
+  /** آخر آية سُمعت (1..عدد الآيات) */
+  ayahNumber: number;
+  /** الموضع داخل ملف السورة (ميلي ثانية) */
+  positionMs: number;
+  completed: boolean;
   updatedAt: Date;
 }
 
@@ -165,5 +196,11 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, 'id'> = {
   notificationsEnabled: false,
   morningReminderTime: null,
   eveningReminderTime: null,
+  // ── المرحلة 6 (الاستماع) — قيم افتراضية موثّقة
+  preferredReciterId: null,
+  audioBitrate: '128',
+  audioPlaybackRate: 1.0,
+  audioRepeatMode: 'off',
+  audioMode: 'surah',
   updatedAt: new Date(),
 };

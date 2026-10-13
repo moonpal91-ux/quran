@@ -13,6 +13,8 @@ import { Screen, Card, SectionTitle } from '../../design-system/components';
 import { useTheme } from '../../design-system/theme';
 import { fontFamilies, fontSizes, spacing, touchTarget } from '../../design-system/tokens';
 import { getSettingsRepository } from '../../repositories/settings-repository';
+import { getAudioProgressRepository } from '../../repositories/audio-progress-repository';
+import { getAudioCatalogRepository } from '../../repositories/audio-catalog-repository';
 import { getSurahInfo } from '../../features/quran/quran-content';
 import { getOpenAppRealm } from '../../database/realm/realm';
 import type { AppSettings } from '../../database/realm/types';
@@ -36,10 +38,32 @@ export function HomeScreen() {
   const navigation = useNavigation<RootTabNavigation>();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ayahsToday, setAyahsToday] = useState(0);
+  // المرحلة 6 — آخر موضع استماع (قد يكون null: لا بطاقة وهمية)
+  const [lastAudio, setLastAudio] = useState<{
+    reciterId: string;
+    surahNumber: number;
+    ayahNumber: number;
+    completed: boolean;
+  } | null>(null);
 
   const load = useCallback(async () => {
     const s = await getSettingsRepository().getSettings();
     setSettings(s);
+    try {
+      const last = getAudioProgressRepository().lastPlayed();
+      setLastAudio(
+        last
+          ? {
+              reciterId: last.reciterId,
+              surahNumber: last.surahNumber,
+              ayahNumber: last.ayahNumber,
+              completed: last.completed,
+            }
+          : null,
+      );
+    } catch {
+      setLastAudio(null);
+    }
     const realm = getOpenAppRealm();
     const row = realm.objects('DailyProgress').filtered('id = $0', todayKey())[0] as unknown as
       | { ayahsRead: number }
@@ -144,6 +168,50 @@ export function HomeScreen() {
             </Text>
           )}
         </Pressable>
+
+        {/* 2-ب) تابع استماعك — المرحلة 6 (لا تظهر إن لم يستمع المستخدم بعد) */}
+        {lastAudio ? (
+          <Pressable
+            onPress={() => navigation.navigate('الاستماع')}
+            style={({ pressed }) => ({
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: tokens.border,
+              backgroundColor: tokens.surface,
+              padding: 16,
+              opacity: pressed ? 0.8 : 1,
+            })}
+            accessibilityRole="button"
+          >
+            <SectionTitle>تابع استماعك</SectionTitle>
+            <Text
+              style={{
+                color: tokens.text,
+                fontSize: fontSizes.lg * fontScale,
+                fontWeight: '700',
+                fontFamily: fontFamilies.uiBold,
+              }}
+            >
+              {(() => {
+                const surah = getSurahInfo(lastAudio.surahNumber);
+                const reciter = getAudioCatalogRepository().getReciter(lastAudio.reciterId);
+                const where = surah ? surah.nameArabic : `سورة ${lastAudio.surahNumber}`;
+                const who = reciter ? ` — ${reciter.nameAr}` : '';
+                return `${where} — آية ${lastAudio.ayahNumber}${who}`;
+              })()}
+            </Text>
+            <Text
+              style={{
+                color: tokens.muted,
+                fontSize: fontSizes.sm * fontScale,
+                fontFamily: fontFamilies.ui,
+                marginTop: spacing.xs,
+              }}
+            >
+              {lastAudio.completed ? 'أتممتَ سماع هذه السورة' : 'اضغط للانتقال إلى تبويب الاستماع'}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* 3) تقدم الورد اليومي (بيانات فعلية) */}
         <Card>

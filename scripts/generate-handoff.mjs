@@ -88,27 +88,33 @@ const GROUPS = [
     'src/repositories/personal-note-repository.ts', 'src/repositories/quran-content-repository.ts',
     'src/repositories/quran-qa-repository.ts', 'src/repositories/reading-session-repository.ts',
     'src/repositories/reading-session-tracker.ts', 'src/repositories/settings-repository.ts',
+    'src/repositories/audio-catalog-repository.ts', 'src/repositories/audio-download-repository.ts',
+    'src/repositories/audio-progress-repository.ts',
   ]],
   ['8.6) src/features (الشاشات والتبويبات)', [
     'src/features/home/home-screen.tsx',
     'src/features/quran/mushaf-stack.tsx', 'src/features/quran/mushaf-home-screen.tsx',
     'src/features/quran/surah-screen.tsx', 'src/features/quran/quran-content.ts',
     'src/features/adhkar/adhkar-screen.tsx',
-    'src/features/audio/audio-screen.tsx',
+    'src/features/audio/audio-screen.tsx', 'src/features/audio/audio-downloader.ts',
+    'src/features/audio/use-audio-player.ts',
     'src/features/library/library-stack.tsx', 'src/features/library/library-home-screen.tsx',
     'src/features/library/bookmarks-screen.tsx', 'src/features/library/favorites-screen.tsx',
     'src/features/library/notes-screen.tsx', 'src/features/library/sessions-screen.tsx',
     'src/features/library/plans-screen.tsx', 'src/features/library/downloads-screen.tsx',
     'src/features/library/settings-screen.tsx', 'src/features/library/about-screen.tsx',
   ]],
-  ['8.7) tests (حزم الاختبارات — 155 فحصًا)', [
+  ['8.7) tests (حزم الاختبارات — 207 فحصًا في 7 ملفات: 155 + 52 للمرحلة 6)', [
     'tests/realm-stage0.test.ts', 'tests/repositories-stage1.test.ts', 'tests/quran-stage2.test.ts',
     'tests/library-stage3.test.ts', 'tests/tafsir-stage4.test.ts', 'tests/adhkar-stage5.test.ts',
+    'tests/audio-stage6.test.ts',
   ]],
   ['8.8) scripts (بوابات الاستيراد والتحقق)', [
     'scripts/bootstrap-rebuild.mjs', 'scripts/import-quran.mjs', 'scripts/validate-quran.mjs',
     'scripts/import-quran-qa.mjs', 'scripts/import-adhkar.mjs', 'scripts/serve-preview.mjs',
     'scripts/generate-handoff.mjs', 'scripts/generate-preview-html.mjs',
+    'scripts/generate-pwa-html.mjs', 'scripts/generate-app-icons.mjs',
+    'scripts/import-audio-catalog.mjs', 'scripts/verify-audio-sources.mjs',
   ]],
   ['8.9) docs (توثيق المشروع)', [
     'docs/CONVENTIONS.md', 'docs/FONTS.md', 'docs/SCREEN-MAP.md',
@@ -136,6 +142,7 @@ const GROUPS = [
     'content/ADHKAR-IMPORT-REPORT.md', 'content/validation-report.json',
     'content/refs/adhkar/manifest.json', 'content/refs/adhkar/LICENSE_seen_arabic.txt',
     'content/refs/tafsir/manifest.sha256',
+    'content/AUDIO-CATALOG.md',
   ]],
 ];
 
@@ -199,6 +206,9 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
 | 3 | المكتبة: جلسات القراءة R1–R6 + سجل القراءة + الورد من DailyProgress + تسمية/مفضلة/ملاحظات | 104 إجمالي | \`daea9b7\` |
 | 4 | التفسير (ابن كثير + البغوي) + 31 فجوة موثقة «لا يتوفر» + شارة العثماني + 4 لوحات + ترحيل Realm 1→2 | 137 إجمالي | \`8d1fab6\` |
 | 5 | الأذكار: حصن المسلم (345/135) بتحقق مزدوج (12/12 قرآن == Tanzil + 29/34 MIT) + عدّادات Realm | **155 إجمالي** | \`9b98f3b\` |
+| 6 | الاستماع: فهرس 13 قارئًا من مصدر موثّق (حتمي، بلا شبكة) + ترحيل مخطط 2→3 (AudioProgress) + مشغّل expo-audio + تنزيل/حذف + آخر موضع استماع + شاشة تنزيلات | **207 إجمالي** (155 + 52) | هذا الفرع |
+| PWA | تطبيق ويب قابل للتثبيت: manifest + عامل خدمة أوفلاين + أيقونات + \`build:pwa\` + ملف واحد \`pwa-app.html\` | — | هذا الفرع |
+| أيقونات | الأصول الست (icon/splash/adaptive/favicon) بتصميم المشروع + أيقونات PWA | — | هذا الفرع |
 | استعادة | ${TODAY}: استعادة كاملة من الأرشيف + تحقق بصمات + \`bootstrap-rebuild.mjs\` + إعادة إنتاج الحزم | 155/155 | هذا الفرع |
 
 ---
@@ -213,15 +223,32 @@ npm install
 node scripts/bootstrap-rebuild.mjs          # 20/20 — يفحص البنية والبصمات ويعيد بناء الحزم
 node scripts/bootstrap-rebuild.mjs --check-only   # تحقق فقط بلا كتابة
 
-# 2) اختبارات (Node + Realm حقيقي) — 155 فحصًا في 6 ملفات:
+# 2) اختبارات (Node + Realm حقيقي) — 207 فحصًا في 7 ملفات (155 قبل المرحلة 6 + 52 لها):
 npm run test:realm
 
 # 3) فحص النص القرآني الخام (18/18):
 node scripts/validate-quran.mjs
 
-# 4) معاينة الويب:
+# 4) الأيقونات (مرسومة من ألوان نظام التصميم — بلا اعتماد خارجي):
+node scripts/generate-app-icons.mjs            # الأصول الست في assets/
+node scripts/generate-app-icons.mjs --force    # إعادة الكتابة
+node scripts/generate-pwa-icons.mjs            # أيقونات public/icons/
+
+# 5) فهرس التلاوة (المرحلة 6 — حتمي، بلا شبكة):
+node scripts/import-audio-catalog.mjs               # الخام -> content/audio-catalog.json + تقرير
+node scripts/verify-audio-sources.mjs --with-surah  # تحقق HEAD على جهاز متصل (محجوب هنا)
+
+# 6) معاينة الويب + التطبيق كـ PWA:
 NODE_OPTIONS=--max-old-space-size=3000 npx expo export --platform web
+node scripts/prepare-pwa.mjs --dist dist   # manifest + عامل خدمة + أيقونات داخل dist/
 cd dist && python3 -m http.server 8081 --bind 0.0.0.0
+# أو اختصارًا: npm run build:pwa && npm run serve:pwa
+
+# 7) حزم التسليم الأربعة:
+node scripts/generate-handoff.mjs        # HANDOFF-2026-10-13.md
+node scripts/generate-preview-html.mjs   # app-preview.html
+node scripts/generate-pwa-html.mjs       # pwa-app.html
+bash scripts/package-archive.sh          # quran-companion-<date>.zip
 \`\`\`
 
 ### 2.1) ملاحظات بيئة حرجة
@@ -278,6 +305,12 @@ ${fence(screenMap)}
 - **الخطوط:** الأربعة مُستعادة من مصادرها الرسمية بأحجام مطابقة حرفيًا لـ \`docs/FONTS.md\`.
 - **\`android/\` (CNG):** أُعيد توليد الـ 14 ملفًا المُثبَّتة في §8.10 بـ \`expo prebuild --platform android\`
   — الأحجام مطابقة للحظة كتابة الدليل (مثل \`app/build.gradle\` 8218B، \`MainActivity.kt\` 2198B).
+- **الاستماع — المرحلة 6 (2026-10-13):** فهرس تلاوات موثّق (13 قارئًا، أسماء ومعرّفات
+  منسوخة حرفيًا من وثيقة CDN وواجهة الإصدارات، والاختلافات موثّقة) + حزمة حتمية بلا شبكة
+  + سكربت تحقق صادق (يُبلّغ «الشبكة محجوبة» ولا يدّعي نجاحًا) + ترحيل مخطط 2→3 مُختبَر
+  + مشغّل/تنزيل/آخر موضع + شاشة تنزيلات. **لا ملف صوتي داخل المستودع**: التنزيل على الجهاز.
+- **الأيقونات (2026-10-13):** الأصول الست + أيقونات PWA مرسومة آليًا من ألوان نظام التصميم
+  عبر \`scripts/generate-app-icons.mjs\` و\`scripts/generate-pwa-icons.mjs\` (بلا اعتماد خارجي).
 - **PWA (2026-10-13):** التطبيق يُصدَّر كتطبيق ويب قابل للتثبيت ويعمل أوفلاين —
   \`public/manifest.webmanifest\` + \`public/sw.js\` (تنقّل: الشبكة ثم الذاكرة · أصول:
   الذاكرة أولًا + تحديث بالخلفية) + أيقونات مرسومة آليًا من رموز التصميم + سكربتا
@@ -287,18 +320,17 @@ ${fence(screenMap)}
 
 ## 5) الخطوات المتبقية (بترتيب الأولوية)
 
-1. **المرحلة 6 — الاستماع:** اعتماد مصدر تلاوة (المرشحات مُوثَّقة أدناه في §10) → مشغل +
-   آخر موضع استماع + تكامل مع الورد إن رُغب. **قيد البيئة:** لا يمكن تنزيل MP3 داخل هذه
-   البيئة (حظر الشبكة) → بوابة البصمات تُنفَّذ على جهاز المطوّر أو وقت التنزيل في التطبيق.
-2. **الخطط/التنزيلات (مرحلة 6):** الهيكلان موجودان (\`plans-screen\`/\`downloads-screen\`) بسجلات فارغة.
-3. **الأصول الثنائية الناقصة:** 6 أيقونات (icon/splash/adaptive/favicon) — لم تصل مع \`BIN-RAW.md\`.
-   \`expo prebuild\` يتوقف عندها؛ استُخدمت أيقونات مؤقتة لإنتاج \`android/\` ثم حُذفت (لا تُشحن أصول مُختلقة).
-   أيقونات **PWA** في \`public/icons/\` مرسومة آليًا من رموز التصميم (بديلة حتى وصول الأصول الأصلية).
-4. **معاني الكلمات (قرار المستخدم: مؤجلة)** — لا زر ولا بيانات.
-5. **نمط «صفحات المصحف» (readingMode):** الحقل موجود؛ العرض المتتابع فقط حاليًا.
-6. **التحقق على جهاز حقيقي:** تباين WCAG + أحجام لمس + Share Sheet — مؤجَّل موثَّق.
-7. **PWA:** فتح المتصفح البشري للتأكد من زر «التثبيت» ووضع الطيران (لا متصفح في بيئة
-   التنفيذ) + تحسين محتمل: إخراج حزمة التفسير (23MB) من الحزمة إلى ملف يُحمَّل عند الطلب.
+1. **التحقق الفعلي من روابط التلاوة على جهاز متصل:** \`node scripts/verify-audio-sources.mjs --with-surah\`
+   (في هذه البيئة الشبكة محجوبة → «unverified-network-blocked» بلا ادّعاء نجاح).
+2. **الخطط (ختمة):** \`plans-screen\` ما زال هيكلًا — الخطة بوحدة وهدف وتواريخ + تقدّم فعلي.
+3. **التحقق على جهاز حقيقي:** تباين WCAG + أحجام لمس + Share Sheet + تشغيل الصوت في
+   الخلفية + تثبيت PWA — مؤجَّل موثَّق (لا جهاز ولا متصفح داخل بيئة التنفيذ).
+4. **مراجعة ترخيص التلاوة قبل النشر العام:** صفحة الـ CDN بلا رخصة صريحة؛ quranicaudio.com
+   ينص على «استخدام شخصي — يُمنع التجاري». القرار للمالك قبل أي توزيع عام.
+5. **تحسين حجم حزمة الويب:** حزمة التفسير (23MB) مُضمَّنة داخل حزمة JS (≈71MB) →
+   إخراجها إلى ملف يُحمَّل عند الطلب ويُخزَّن أوفلاين.
+6. **معاني الكلمات (قرار المستخدم: مؤجلة)** — لا زر ولا بيانات.
+7. **نمط «صفحات المصحف» (readingMode):** الحقل موجود؛ العرض المتتابع فقط حاليًا.
 
 ## 6) قرارات مستخدم سارية (لا تُعاد بدون سؤال)
 
@@ -356,7 +388,19 @@ md += `
   (طابع زمني) — \`bootstrap-rebuild.mjs\` يستعيد النسخة المعتمدة تلقائيًا عند هذا الفرق فقط.
 - **realm.node:** انظر §2.1/6 — التثبيت لا يكفي وحده في بيئة محجوبة الشبكة.
 
-## 10) المرحلة 6 — مرشحات مصدر التلاوة (للاعتماد قبل البناء)
+## 10) المرحلة 6 — مصدر التلاوة المعتمد (نُفِّذ)
+
+| المصدر | الحالة |
+|---|---|
+| cdn.islamic.network (AlQuran Cloud CDN) | **المعتمد**: أنماط روابط موثّقة + بلا مفتاح/حساب + 13 قارئًا + 6 معدلات بِتّ |
+| everyayah.com | مرفوض مؤقتًا: CC BY-NC + إلزام الربط |
+| mp3quran.net | مرفوض مؤقتًا: الرخصة لم تُتحقق |
+| quranicaudio.com | مرفوض مؤقتًا: «استخدام شخصي — ممنوع تجاريًا» |
+| api.quran.com الرسمي | مرفوض: يتطلب مفتاح/حساب (يتعارض مع «بلا سحاب إجباري») |
+
+التفاصيل (القرّاء، الملاحظات، بصمة المادة الخام، الترخيص) في \`content/AUDIO-CATALOG.md\`.
+
+### 10-1) مرشحات المصدر الأصلية (للأرشفة)
 
 | # | المصدر | النمط | الترخيص كما ورد | الملاحظة |
 |---|---|---|---|---|

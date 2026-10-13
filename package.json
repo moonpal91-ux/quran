@@ -9,7 +9,9 @@
     "@react-navigation/native-stack": "^7.20.0",
     "@realm/react": "^0.20.0",
     "expo": "~57.0.27",
+    "expo-audio": "~57.0.5",
     "expo-clipboard": "~57.0.2",
+    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
@@ -34,7 +36,7 @@
     "build:pwa": "expo export --platform web && node scripts/prepare-pwa.mjs",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "serve:pwa": "python3 -m http.server 8081 --bind 0.0.0.0 -d dist",
-    "test:realm": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build/content',{recursive:true});require('fs').copyFileSync('content/quran-data.json','.test-build/content/quran-data.json');require('fs').copyFileSync('content/adhkar-data.json','.test-build/content/adhkar-data.json')\" && node .test-build/tests/realm-stage0.test.js && node .test-build/tests/repositories-stage1.test.js && node .test-build/tests/quran-stage2.test.js && node .test-build/tests/library-stage3.test.js && node .test-build/tests/tafsir-stage4.test.js && node .test-build/tests/adhkar-stage5.test.js",
+    "test:realm": "tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build/content',{recursive:true});require('fs').copyFileSync('content/quran-data.json','.test-build/content/quran-data.json');require('fs').copyFileSync('content/adhkar-data.json','.test-build/content/adhkar-data.json');require('fs').copyFileSync('content/audio-catalog.json','.test-build/content/audio-catalog.json')\" && node .test-build/tests/realm-stage0.test.js && node .test-build/tests/repositories-stage1.test.js && node .test-build/tests/quran-stage2.test.js && node .test-build/tests/library-stage3.test.js && node .test-build/tests/tafsir-stage4.test.js && node .test-build/tests/adhkar-stage5.test.js && node .test-build/tests/audio-stage6.test.js",
     "test:realm:clean": "rm -rf .test-build .test-data"
   },
   "private": true

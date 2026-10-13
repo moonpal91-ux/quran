@@ -13,7 +13,7 @@
 // استبدالها = وضع PNGs بنفس الأسماء في public/icons/ (أو حذفها وإعادة التشغيل).
 // ═════════════════════════════════════════════════════════════════════════════
 import { deflateSync } from 'node:zlib';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -136,9 +136,14 @@ const TARGETS = [
   ['favicon-32.png', 32, {}],
 ];
 
-console.log('== أيقونات PWA (من ألوان نظام التصميم) ==');
-for (const [name, size, opts] of TARGETS) {
-  const bytes = writePng(join(OUT, name), size, size, drawIcon(size, opts));
-  console.log(`  public/icons/${name} — ${size}×${size} — ${(bytes / 1024).toFixed(1)}KB`);
+// ───────────────────────── التشغيل المباشر ─────────────────────────
+export { writePng, drawIcon, GREEN, GOLD };
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  console.log('== أيقونات PWA (من ألوان نظام التصميم) ==');
+  for (const [name, size, opts] of TARGETS) {
+    const bytes = writePng(join(OUT, name), size, size, drawIcon(size, opts));
+    console.log(`  public/icons/${name} — ${size}×${size} — ${(bytes / 1024).toFixed(1)}KB`);
+  }
+  console.log('ملاحظة: أيقونات العلامة الرسمية في assets/ تُنتَج بـ scripts/generate-app-icons.mjs');
 }
-console.log('بديلة حتى وصول أصول التصميم الأصلية (BIN-RAW.md).');

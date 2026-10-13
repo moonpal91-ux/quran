@@ -19,7 +19,7 @@ echo "== تجهيز قائمة الملفات =="
 LIST=$(mktemp)
 git ls-files > "$LIST" 2>/dev/null || true
 # ملفات غير متتبعة لكنها مطلوبة (أدوات/أصول/معاينات) ولا تُستثنى
-for extra in app-preview.html assets tools android; do
+for extra in app-preview.html pwa-app.html assets tools android public; do
   [ -e "$extra" ] && find "$extra" -type f >> "$LIST" || true
 done
 [ -n "$HANDOFF" ] && echo "${HANDOFF#$ROOT/}" >> "$LIST"

@@ -1,0 +1,175 @@
+{
+  "_note": "مادة خام مُثبَّتة لفهرس التلاوات — نُسخت حرفيًا (معرّفات وأسماء وأنماط) من مصدرين رسميين يوم 2026-10-13. لا نص قرآني هنا ولا أسماء مُختلقة: كل حقل منسوخ كما ورد، والاختلافات بين المصدرين موثّقة في notes.",
+  "sources": [
+    {
+      "id": "cdn-docs",
+      "title": "وثيقة CDN الرسمية (أنماط الروابط + جدول القرّاء + معدلات البِتّ)",
+      "url": "https://alquran.cloud/cdn",
+      "fetchedAt": "2026-10-13"
+    },
+    {
+      "id": "editions-api",
+      "title": "قائمة الإصدارات الصوتية الرسمية (الأسماء العربية/الإنجليزية)",
+      "url": "https://api.alquran.cloud/v1/edition/format/audio",
+      "fetchedAt": "2026-10-13"
+    }
+  ],
+  "patterns": {
+    "ayah": "https://cdn.islamic.network/quran/audio/{bitrate}/{edition}/{number}.mp3",
+    "surah": "https://cdn.islamic.network/quran/audio-surah/{bitrate}/{edition}/{number}.mp3"
+  },
+  "ranges": {
+    "ayah": { "min": 1, "max": 6236 },
+    "surah": { "min": 1, "max": 114 }
+  },
+  "bitrates": ["192", "128", "64", "48", "40", "32"],
+  "license": {
+    "text": "لم تُصرَّح برخصة صريحة على صفحة وثيقة الـ CDN أو صفحة المصدر؛ موقع quranicaudio.com (التابع للمشروع) ينص على «استخدام شخصي مجاني — يُمنع الاستخدام التجاري». قرارنا: الاستخدام داخل التطبيق للأفراد، بلا إعادة بيع للملفات، مع ذكر المصدر داخل التطبيق.",
+    "reviewRequiredBeforePublicRelease": true
+  },
+  "editions": [
+    {
+      "identifier": "ar.alafasy",
+      "cdnName": "مشاري راشد العفاسي",
+      "cdnNameEn": "Mishary Rashid Alafasy",
+      "apiName": "مشاري العفاسي",
+      "apiNameEn": "Alafasy",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128
+    },
+    {
+      "identifier": "ar.husary",
+      "cdnName": "محمود خليل الحصري",
+      "cdnNameEn": "Mahmoud Khalil Al-Husary",
+      "apiName": "محمود خليل الحصري",
+      "apiNameEn": "Husary",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128
+    },
+    {
+      "identifier": "ar.minshawi",
+      "cdnName": "محمد صديق المنشاوي",
+      "cdnNameEn": "Mohamed Siddiq al-Minshawi",
+      "apiName": "محمد صديق المنشاوي",
+      "apiNameEn": "Minshawi",
+      "apiType": "translation",
+      "styleEn": "Murattal",
+      "defaultKbps": 128,
+      "notes": "صنّفته واجهة API كـ translation بينما تضعه وثيقة الـ CDN ضمن تلاوات الآية (Murattal) — يُعتمد تصنيف الـ CDN للروابط."
+    },
+    {
+      "identifier": "ar.minshawimujawwad",
+      "cdnName": "محمد صديق المنشاوي (مجوَّد)",
+      "cdnNameEn": "Al-Minshawi (Mujawwad)",
+      "apiName": "محمد صديق المنشاوي (المجود)",
+      "apiNameEn": "Minshawy (Mujawwad)",
+      "apiType": "translation",
+      "styleEn": "Mujawwad",
+      "defaultKbps": 64,
+      "notes": "نفس ملاحظة الإصدار السابق."
+    },
+    {
+      "identifier": "ar.sudais",
+      "cdnName": "عبدالرحمن السديس",
+      "cdnNameEn": "Abdul Rahman Al-Sudais",
+      "apiName": "عبدالرحمن السديس",
+      "apiNameEn": "Abdurrahmaan As-Sudais",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 192,
+      "notes": "معرّف الـ CDN (ar.sudais) يختلف عن معرّف واجهة API (ar.abdurrahmaansudais) — تُبنى الروابط على معرّف الـ CDN."
+    },
+    {
+      "identifier": "ar.shuraim",
+      "cdnName": "سعود الشريم",
+      "cdnNameEn": "Saud Al-Shuraim",
+      "apiName": "سعود الشريم",
+      "apiNameEn": "Saood bin Ibraaheem Ash-Shuraym",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128,
+      "notes": "معرّف الـ CDN (ar.shuraim) يختلف عن معرّف واجهة API (ar.saoodshuraym)."
+    },
+    {
+      "identifier": "ar.abdulbasit",
+      "cdnName": "عبد الباسط عبد الصمد",
+      "cdnNameEn": "Abdul Basit Abdul Samad",
+      "apiName": "عبدالباسط عبدالصمد",
+      "apiNameEn": "Abdul Samad",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 192,
+      "notes": "معرّف الـ CDN (ar.abdulbasit) يختلف عن معرّف واجهة API (ar.abdulsamad / ar.abdulbasitmurattal)."
+    },
+    {
+      "identifier": "ar.abdulbasitmujawwad",
+      "cdnName": "عبد الباسط عبد الصمد (مجوَّد)",
+      "cdnNameEn": "Abdul Basit (Mujawwad)",
+      "apiName": "عبد الباسط عبد الصمد (مجوَّد)",
+      "apiNameEn": "Abdul Basit Abdus-Samad (Mujawwad)",
+      "apiType": "surahbysurah",
+      "styleEn": "Mujawwad",
+      "defaultKbps": 192
+    },
+    {
+      "identifier": "ar.ajamy",
+      "cdnName": "أحمد بن علي العجمي",
+      "cdnNameEn": "Ahmed ibn Ali al-Ajamy",
+      "apiName": "أحمد بن علي العجمي",
+      "apiNameEn": "Ahmed ibn Ali al-Ajamy",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128,
+      "notes": "معرّف الـ CDN (ar.ajamy) يختلف عن معرّف واجهة API (ar.ahmedajamy)."
+    },
+    {
+      "identifier": "ar.muhammadayoub",
+      "cdnName": "محمد أيوب",
+      "cdnNameEn": "Muhammad Ayyoub",
+      "apiName": "محمد أيوب",
+      "apiNameEn": "Muhammad Ayyoub",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128,
+      "notes": "معرّف الـ CDN (ar.muhammadayoub) يختلف عن معرّف واجهة API (ar.muhammadayyoub / ar.muhammadayyub)."
+    },
+    {
+      "identifier": "ar.hudhaify",
+      "cdnName": "علي بن عبدالرحمن الحذيفي",
+      "cdnNameEn": "Ali Al-Hudhaify",
+      "apiName": "علي بن عبدالرحمن الحذيفي",
+      "apiNameEn": "Hudhaify",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128
+    },
+    {
+      "identifier": "ar.muhammadjibreel",
+      "cdnName": "محمد جبريل",
+      "cdnNameEn": "Muhammad Jibreel",
+      "apiName": "محمد جبريل",
+      "apiNameEn": "Muhammad Jibreel",
+      "apiType": "versebyverse",
+      "styleEn": "Murattal",
+      "defaultKbps": 128
+    },
+    {
+      "identifier": "ar.parhizgar",
+      "cdnName": "شهریار پرهیزگار",
+      "cdnNameEn": "Shahriar Parhizgar",
+      "apiName": "شهریار پرهیزگار",
+      "apiNameEn": "Parhizgar",
+      "apiType": "versebyverse",
+      "styleEn": "Muallim",
+      "defaultKbps": 64,
+      "notes": "جدول وثيقة الـ CDN يذكر أمام هذا المعرّف اسم «محمود خليل الحصري» — وهو خطأ نسخ ظاهر في المصدر (ar.parhizgar = شهریار پرهیزگار عند واجهة API). اعتُمد اسم واجهة API، والملاحظة موثّقة."
+    }
+  ],
+  "notes": [
+    "وثيقة الـ CDN تسمي جدول القرّاء «sample» وتحيل إلى /v1/edition/format/audio للقائمة الكاملة — لذلك التحقق الفعلي من توفّر كل قارئ/معدل بِتّ يتم بسكربت scripts/verify-audio-sources.mjs على جهاز متصل.",
+    "نمط الروابط بالسورة (audio-surah) موثّق في المصدر، لكن توفّر كل قارئ تحته غير مضمون → الحقل surahVerified يبقى false حتى التحقق.",
+    "لا يُنزَّل أي ملف صوتي داخل هذه البيئة (الشبكة محجوبة)؛ التنزيل يحدث على جهاز المستخدم داخل التطبيق."
+  ]
+}

@@ -271,10 +271,17 @@ W = os.environ['W']
 CORE_SPEC = f"{W}/rjs/packages/realm/bindgen/vendor/realm-core/bindgen/spec.yml"
 JS_SPEC   = f"{W}/rjs/packages/realm/bindgen/js_spec.yml"
 OPT_IN    = f"{W}/rjs/packages/realm/bindgen/js_opt_in_spec.yml"
-TSX = f"{W}/bdeps/node_modules/.bin/tsx"
+_tsx_bin = f"{W}/bdeps/node_modules/.bin/tsx"
+_tsx_cli = f"{W}/bdeps/node_modules/tsx/dist/cli.mjs"
+if os.path.exists(_tsx_bin):
+    TSX = [_tsx_bin]
+elif os.path.exists(_tsx_cli):
+    TSX = ["node", _tsx_cli]          # npm قد لا ينشئ رابط .bin — نستخدم المدخل مباشرة
+else:
+    raise SystemExit("tsx غير مثبّت في bdeps — شغّل: npm install --prefix \"$W/bdeps\" tsx")
 CWD = f"{W}/rjs/packages/realm/bindgen/vendor/realm-core/bindgen"
 os.environ['REALM_BINDGEN_SKIP_FORMAT'] = '1'
-cmd = [TSX, 'realm-bindgen.ts', '--spec', 'spec.yml', '--spec', JS_SPEC, '--opt-in', OPT_IN,
+cmd = TSX + ['realm-bindgen.ts', '--spec', 'spec.yml', '--spec', JS_SPEC, '--opt-in', OPT_IN,
        '--template', f"{W}/rjs/packages/realm/bindgen/src/templates/node.ts", '--output', f"{W}/bgtest"]
 ind = lambda l: len(l) - len(l.lstrip())
 
