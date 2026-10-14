@@ -1,6 +1,9 @@
 /**
  * شاشة «مكتبتي» — نقطة الدخول: قائمة الأقسام مع عدّادات حقيقية من قاعدة البيانات.
- * (01-PRODUCT-SPEC §6: تضم الخطط، المفضلة، العلامات، الملاحظات، التنزيلات، الإعدادات)
+ * (01-PRODUCT-SPEC §6: تضم الخطط، المفضلة، العلامات، الملاحظات، الإعدادات)
+ *
+ * ملاحظة (2026-10-14): «التنزيلات» أُزيلت مع تبويب الاستماع (كانت لإدارة ملفات
+ * التلاوة فقط) — ولا تُترك شاشة بلا وظيفة.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
@@ -70,12 +73,6 @@ export function LibraryHomeScreen() {
             title="الخطط"
             subtitle="خطط القراءة والختمة"
             onPress={() => navigation.navigate('Plans')}
-            showChevron
-          />
-          <ListRow
-            title="التنزيلات"
-            subtitle="محتوى مرخّص للعمل دون اتصال"
-            onPress={() => navigation.navigate('Downloads')}
             showChevron
           />
         </Card>

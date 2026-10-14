@@ -88,33 +88,30 @@ const GROUPS = [
     'src/repositories/personal-note-repository.ts', 'src/repositories/quran-content-repository.ts',
     'src/repositories/quran-qa-repository.ts', 'src/repositories/reading-session-repository.ts',
     'src/repositories/reading-session-tracker.ts', 'src/repositories/settings-repository.ts',
-    'src/repositories/audio-catalog-repository.ts', 'src/repositories/audio-download-repository.ts',
-    'src/repositories/audio-progress-repository.ts', 'src/repositories/plan-repository.ts',
+    'src/repositories/plan-repository.ts',
   ]],
   ['8.6) src/features (الشاشات والتبويبات)', [
     'src/features/home/home-screen.tsx',
     'src/features/quran/mushaf-stack.tsx', 'src/features/quran/mushaf-home-screen.tsx',
     'src/features/quran/surah-screen.tsx', 'src/features/quran/quran-content.ts',
     'src/features/adhkar/adhkar-screen.tsx',
-    'src/features/audio/audio-screen.tsx', 'src/features/audio/audio-downloader.ts',
-    'src/features/audio/use-audio-player.ts', 'src/features/library/plans-screen.tsx',
+    'src/features/library/plans-screen.tsx',
     'src/features/library/library-stack.tsx', 'src/features/library/library-home-screen.tsx',
     'src/features/library/bookmarks-screen.tsx', 'src/features/library/favorites-screen.tsx',
     'src/features/library/notes-screen.tsx', 'src/features/library/sessions-screen.tsx',
     'src/features/library/plans-screen.tsx', 'src/features/library/downloads-screen.tsx',
     'src/features/library/settings-screen.tsx', 'src/features/library/about-screen.tsx',
   ]],
-  ['8.7) tests (حزم الاختبارات — 262 فحصًا في 8 ملفات: 155 + 52 للاستماع + 55 للخطط)', [
+  ['8.7) tests (حزم الاختبارات — 210 فحصًا في 7 ملفات: 155 + 55 للخطط)', [
     'tests/realm-stage0.test.ts', 'tests/repositories-stage1.test.ts', 'tests/quran-stage2.test.ts',
     'tests/library-stage3.test.ts', 'tests/tafsir-stage4.test.ts', 'tests/adhkar-stage5.test.ts',
-    'tests/audio-stage6.test.ts', 'tests/plans-stage7.test.ts',
+    'tests/plans-stage7.test.ts',
   ]],
   ['8.8) scripts (بوابات الاستيراد والتحقق)', [
     'scripts/bootstrap-rebuild.mjs', 'scripts/import-quran.mjs', 'scripts/validate-quran.mjs',
     'scripts/import-quran-qa.mjs', 'scripts/import-adhkar.mjs', 'scripts/serve-preview.mjs',
     'scripts/generate-handoff.mjs', 'scripts/generate-preview-html.mjs',
     'scripts/generate-pwa-html.mjs', 'scripts/generate-app-icons.mjs',
-    'scripts/import-audio-catalog.mjs', 'scripts/verify-audio-sources.mjs',
   ]],
   ['8.9) docs (توثيق المشروع)', [
     'docs/CONVENTIONS.md', 'docs/FONTS.md', 'docs/SCREEN-MAP.md',
@@ -142,7 +139,11 @@ const GROUPS = [
     'content/ADHKAR-IMPORT-REPORT.md', 'content/validation-report.json',
     'content/refs/adhkar/manifest.json', 'content/refs/adhkar/LICENSE_seen_arabic.txt',
     'content/refs/tafsir/manifest.sha256',
-    'content/AUDIO-CATALOG.md',
+  ]],
+  ['8.15) مادة مرجعية مؤجَّلة — مصدر التلاوة (لا يستخدمها التطبيق الآن)', [
+    'content/refs/audio/alquran-cloud-cdn.json', 'content/audio-catalog.json',
+    'content/AUDIO-CATALOG.md', 'scripts/import-audio-catalog.mjs',
+    'scripts/verify-audio-sources.mjs',
   ]],
   ['8.14) برومبت بدء محادثة جديدة', [
     'PROMPT-NEW-SESSION.md',
@@ -189,7 +190,7 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
 - **حقوق المصمم والمطور:** إيهاب عجور أبو الأمير
 - **تاريخ هذا التسليم:** ${TODAY}
 - **آخر مرحلة مغلقة:** المرحلة 7 — الخطط (commit \`HEAD\` — يُحدَّث عند كل تسليم)
-- **حالة الاختبارات:** \`npm run test:realm\` = **262/262** (155 + 52 للاستماع + 55 للخطط) — TSC نظيف
+- **حالة الاختبارات:** \`npm run test:realm\` = **210/210** (155 + 55 للخطط) — TSC نظيف
 - **حالة مساحة العمل (${TODAY}):** مُستعادة ومُتحقَّق منها بالكامل — \`node scripts/bootstrap-rebuild.mjs\` = **21/21**
 - **الوحدة الأصلية لـ Realm:** أُعيد بناؤها في هذه الجلسة من المصدر عبر \`tools/build-realm-node.sh\`
   → \`tools/realm-prebuilds/linux-x64/realm.node\` (17.4MB) — الاختبارات 155/155 بها.
@@ -229,8 +230,8 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
 | 3 | المكتبة: جلسات القراءة R1–R6 + سجل القراءة + الورد من DailyProgress + تسمية/مفضلة/ملاحظات | 104 إجمالي | \`daea9b7\` |
 | 4 | التفسير (ابن كثير + البغوي) + 31 فجوة موثقة «لا يتوفر» + شارة العثماني + 4 لوحات + ترحيل Realm 1→2 | 137 إجمالي | \`8d1fab6\` |
 | 5 | الأذكار: حصن المسلم (345/135) بتحقق مزدوج (12/12 قرآن == Tanzil + 29/34 MIT) + عدّادات Realm | **155 إجمالي** | \`9b98f3b\` |
-| 6 | الاستماع: فهرس 13 قارئًا من مصدر موثّق (حتمي، بلا شبكة) + ترحيل مخطط 2→3 (AudioProgress) + مشغّل expo-audio + تنزيل/حذف + آخر موضع استماع + شاشة تنزيلات | 207 (155 + 52) | هذا الفرع |
-| 7 | الخطط: قوالب ختمة/ورد/مواظبة + حصة يومية محسوبة + **إنجاز مقيس من السجلات فقط (لا إدخال يدوي)** + شاشة كاملة + بطاقة في الرئيسية | **262 إجمالي** (207 + 55) | هذا الفرع |
+| 7 | الخطط: قوالب ختمة/ورد/مواظبة + حصة يومية محسوبة + **إنجاز مقيس من السجلات فقط (لا إدخال يدوي)** + شاشة كاملة + بطاقة في الرئيسية | 210 (155 + 55) | هذا الفرع |
+| 6⇢✗ | **الاستماع — أُزيل بالكامل** (2026-10-14) بطلب المستخدم: كان التبويب يعطي شاشة بيضاء. أُزيلت الشاشة + 3 مستودعات + كائن \`AudioProgress\` + حقول الصوت الخمسة (ترحيل 3→4) + تبعيّتا expo-audio/expo-file-system + شاشة التنزيلات + 52 فحصًا. **مادة المصدر محفوظة مؤجَّلة** في §8.15 | — | هذا الفرع |
 | PWA | تطبيق ويب قابل للتثبيت: manifest + عامل خدمة أوفلاين + أيقونات + \`build:pwa\` + ملف واحد \`pwa-app.html\` | — | هذا الفرع |
 | أيقونات | الأصول الست (icon/splash/adaptive/favicon) بتصميم المشروع + أيقونات PWA | — | هذا الفرع |
 | استعادة | ${TODAY}: استعادة كاملة من الأرشيف + تحقق بصمات + \`bootstrap-rebuild.mjs\` + إعادة إنتاج الحزم | 155/155 | هذا الفرع |
@@ -247,7 +248,7 @@ npm install
 node scripts/bootstrap-rebuild.mjs          # 20/20 — يفحص البنية والبصمات ويعيد بناء الحزم
 node scripts/bootstrap-rebuild.mjs --check-only   # تحقق فقط بلا كتابة
 
-# 2) اختبارات (Node + Realm حقيقي) — 262 فحصًا في 8 ملفات (155 + 52 للاستماع + 55 للخطط):
+# 2) اختبارات (Node + Realm حقيقي) — 210 فحصًا في 7 ملفات (155 + 55 للخطط):
 npm run test:realm
 
 # 3) فحص النص القرآني الخام (18/18):
@@ -258,7 +259,7 @@ node scripts/generate-app-icons.mjs            # الأصول الست في asse
 node scripts/generate-app-icons.mjs --force    # إعادة الكتابة
 node scripts/generate-pwa-icons.mjs            # أيقونات public/icons/
 
-# 5) فهرس التلاوة (المرحلة 6 — حتمي، بلا شبكة):
+# 5) مادة التلاوة المؤجَّلة (لا يستخدمها التطبيق الآن — §8.15):
 node scripts/import-audio-catalog.mjs               # الخام -> content/audio-catalog.json + تقرير
 node scripts/verify-audio-sources.mjs --with-surah  # تحقق HEAD على جهاز متصل (محجوب هنا)
 
@@ -305,7 +306,6 @@ App (إقلاع: قاعدة البيانات ← Metadata المحتوى ← ج�
     ├── 2) المصحف MushafStack ............ فهرس 114 سورة + بحث
     │       └── SurahScreen ............... قارئ عثماني + أدوات الآية + التفسير + لوحات
     ├── 3) الأذكار AdhkarScreen .......... 135 فئة + 345 ذكرًا بعدّادات + ملخص اليوم
-    ├── 4) الاستماع AudioScreen .......... هيكل فقط — المحتوى: المرحلة 6 (بانتظار اعتماد مصدر)
     └── 5) مكتبتي LibraryStack ........... علامات/مفضلة/ملاحظات/سجل/خطط/تنزيلات/إعدادات/حول
 \`\`\`
 
@@ -330,10 +330,13 @@ ${fence(screenMap)}
 - **الخطوط:** الأربعة مُستعادة من مصادرها الرسمية بأحجام مطابقة حرفيًا لـ \`docs/FONTS.md\`.
 - **\`android/\` (CNG):** أُعيد توليد الـ 14 ملفًا المُثبَّتة في §8.10 بـ \`expo prebuild --platform android\`
   — الأحجام مطابقة للحظة كتابة الدليل (مثل \`app/build.gradle\` 8218B، \`MainActivity.kt\` 2198B).
-- **الاستماع — المرحلة 6 (2026-10-13):** فهرس تلاوات موثّق (13 قارئًا، أسماء ومعرّفات
-  منسوخة حرفيًا من وثيقة CDN وواجهة الإصدارات، والاختلافات موثّقة) + حزمة حتمية بلا شبكة
-  + سكربت تحقق صادق (يُبلّغ «الشبكة محجوبة» ولا يدّعي نجاحًا) + ترحيل مخطط 2→3 مُختبَر
-  + مشغّل/تنزيل/آخر موضع + شاشة تنزيلات. **لا ملف صوتي داخل المستودع**: التنزيل على الجهاز.
+- **الاستماع — مُزال بالكامل (2026-10-14):** بطلب المستخدم، لأن التبويب كان يعطي شاشة
+  بيضاء. أُزيل من التطبيق: التبويب، شاشة \`audio-screen\`، \`use-audio-player\`،
+  \`audio-downloader\`، مستودعات الصوت الثلاثة، كائن \`AudioProgress\` وحقول الصوت الخمسة
+  من \`AppSettings\` (ترحيل 3→4 آمن — لا يُفقد شيء من بيانات القراءة والأذكار والخطط)،
+  تبعيّتا \`expo-audio\` و\`expo-file-system\`، وشاشة «التنزيلات» (لم يبقَ لها محتوى)،
+  و52 فحصًا من حزمة الاختبارات. **المادة المرجعية لمصدر التلاوة محفوظة مؤجَّلة** في §8.15
+  لإعادة بناء المرحلة لاحقًا على أساس موثّق.
 - **الأيقونات (2026-10-13):** الأصول الست + أيقونات PWA مرسومة آليًا من ألوان نظام التصميم
   عبر \`scripts/generate-app-icons.mjs\` و\`scripts/generate-pwa-icons.mjs\` (بلا اعتماد خارجي).
 - **PWA (2026-10-13):** التطبيق يُصدَّر كتطبيق ويب قابل للتثبيت ويعمل أوفلاين —
@@ -345,13 +348,16 @@ ${fence(screenMap)}
 
 ## 5) الخطوات المتبقية (بترتيب الأولوية)
 
-1. **التحقق الفعلي من روابط التلاوة على جهاز متصل:** \`node scripts/verify-audio-sources.mjs --with-surah\`
-   (في هذه البيئة الشبكة محجوبة → «unverified-network-blocked» بلا ادّعاء نجاح).
+1. **إعادة بناء «الاستماع» لاحقًا** (التبويب مُزال الآن): المادة المرجعية جاهزة في §8.15،
+   ويُنصح بتشغيل \`node scripts/verify-audio-sources.mjs --with-surah\` على جهاز متصل
+   قبل البناء (الشبكة محجوبة في بيئة التطوير → الحالة «unverified-network-blocked» بصدق).
+   سبب الإزالة: التبويب كان يعطي شاشة بيضاء — يُدرَس سببه قبل إعادة بنائه.
 2. **الخطط (ختمة):** \`plans-screen\` ما زال هيكلًا — الخطة بوحدة وهدف وتواريخ + تقدّم فعلي.
 3. **التحقق على جهاز حقيقي:** تباين WCAG + أحجام لمس + Share Sheet + تشغيل الصوت في
    الخلفية + تثبيت PWA — مؤجَّل موثَّق (لا جهاز ولا متصفح داخل بيئة التنفيذ).
-4. **مراجعة ترخيص التلاوة قبل النشر العام:** صفحة الـ CDN بلا رخصة صريحة؛ quranicaudio.com
-   ينص على «استخدام شخصي — يُمنع التجاري». القرار للمالك قبل أي توزيع عام.
+4. **مراجعة ترخيص التلاوة قبل النشر العام** (إن أُعيد بناء المرحلة): صفحة الـ CDN بلا رخصة
+   صريحة؛ quranicaudio.com ينص على «استخدام شخصي — يُمنع التجاري». القرار للمالك قبل أي
+   توزيع عام.
 5. **تحسين حجم حزمة الويب:** حزمة التفسير (23MB) مُضمَّنة داخل حزمة JS (≈71MB) →
    إخراجها إلى ملف يُحمَّل عند الطلب ويُخزَّن أوفلاين.
 6. **معاني الكلمات (قرار المستخدم: مؤجلة)** — لا زر ولا بيانات.
@@ -413,7 +419,11 @@ md += `
   (طابع زمني) — \`bootstrap-rebuild.mjs\` يستعيد النسخة المعتمدة تلقائيًا عند هذا الفرق فقط.
 - **realm.node:** انظر §2.1/6 — التثبيت لا يكفي وحده في بيئة محجوبة الشبكة.
 
-## 10) المرحلة 6 — مصدر التلاوة المعتمد (نُفِّذ)
+## 10) مصدر التلاوة — مادة مرجعية **مؤجَّلة** (التبويب مُزال)
+
+> **تنبيه:** تبويب «الاستماع» وكل شيفرته **أُزيلا من التطبيق** في 2026-10-14 بطلب المستخدم
+> (كان يعطي شاشة بيضاء). ما يلي مادة مرجعية موثّقة لإعادة بناء المرحلة لاحقًا،
+> وهي محفوظة في §8.15 — لا يقرؤها التطبيق الآن ولا تُشحن معه.
 
 | المصدر | الحالة |
 |---|---|

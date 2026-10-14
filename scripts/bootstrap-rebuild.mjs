@@ -185,6 +185,11 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
 
   // سجلات حيّة: يُتحقق من وجودها فقط، لأن أحجامها تنمو طبيعيًا مع كل مرحلة
   // (الحجم المُثبّت في HANDOFF §8 يعكس لحظة كتابة الدليل، لا الحجم النهائي).
+  // ملفات أُزيلت عمدًا بقرار موثّق (لا تُعدّ غيابًا خللًا) — تُذكر أسبابها هنا:
+  const REMOVED_BY_DECISION = new Map([
+    ['src/features/audio/audio-screen.tsx', 'المرحلة 6 (الاستماع) — أُزيلت 2026-10-14: التبويب كان يعطي شاشة بيضاء'],
+    ['src/features/library/downloads-screen.tsx', 'تابعة للاستماع — أُزيلت معه 2026-10-14 (لم يبقَ لها محتوى)'],
+  ]);
   const SIZE_EXEMPT = new Set([
     'STAGE-PROGRESS.md',   // سجل مراحل حيّ
     // ملفات نُفِّذت بعد كتابة الدليل: كان الدليل يورد حجم «الهيكل» (stub)،
@@ -192,7 +197,6 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
     'src/database/realm/realm.ts',            // + ترحيل 2→3
     'src/database/realm/schemas.ts',          // + AudioProgress + حقول الصوت
     'src/database/realm/types.ts',            // + أنواع الصوت
-    'src/features/audio/audio-screen.tsx',    // شاشة الاستماع كاملة
     'src/features/home/home-screen.tsx',      // + بطاقة «تابع استماعك»
     'src/features/library/downloads-screen.tsx', // شاشة التنزيلات كاملة
     'src/features/library/plans-screen.tsx',    // شاشة الخطط كاملة (المرحلة 7)
@@ -203,9 +207,14 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
   const missingList = [];
   const sizeList = [];
   const exemptList = [];
+  const removedList = [];
   for (const e of entries) {
     const p = path.join(ROOT, e.file);
     if (!existsSync(p)) {
+      if (REMOVED_BY_DECISION.has(e.file)) {
+        removedList.push(`${e.file} (مُزال بقرار: ${REMOVED_BY_DECISION.get(e.file)})`);
+        continue;
+      }
       missing++;
       missingList.push(e.file);
       continue;
@@ -222,8 +231,14 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
       sizeList.push(`${e.file} (المتوقع ~${e.kb}KB / الفعلي ${humanKB(bytes)}KB)`);
     }
   }
-  check(`كل ملفات §8 موجودة (${entries.length - missing}/${entries.length})`, missing === 0, missingList.join(' | '));
-  const sizeBase = entries.length - missing - exemptList.length;
+  const presentBase = entries.length - removedList.length;
+  check(
+    `كل ملفات §8 موجودة (${presentBase - missing}/${presentBase})`,
+    missing === 0,
+    missingList.join(' | '),
+  );
+  if (removedList.length) console.log(`  ⊗ ${removedList.join(' | ')}`);
+  const sizeBase = entries.length - missing - exemptList.length - removedList.length;
   check(
     `أحجام ملفات §8 مطابقة (${sizeBase - sizeMismatch}/${sizeBase})`,
     sizeMismatch === 0,

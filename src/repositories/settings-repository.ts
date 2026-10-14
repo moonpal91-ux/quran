@@ -7,8 +7,6 @@ import {
   APP_SETTINGS_ID,
   DEFAULT_SETTINGS,
   type AppSettings,
-  type AudioMode,
-  type AudioRepeatMode,
   type GoalUnit,
   type MushafBg,
   type ReadingMode,
@@ -27,12 +25,6 @@ export interface UpdateSettingsInput {
   notificationsEnabled?: boolean;
   morningReminderTime?: string | null;
   eveningReminderTime?: string | null;
-  // ── المرحلة 6 (الاستماع)
-  preferredReciterId?: string | null;
-  audioBitrate?: string | null;
-  audioPlaybackRate?: number | null;
-  audioRepeatMode?: AudioRepeatMode | null;
-  audioMode?: AudioMode | null;
 }
 
 class SettingsRepository {

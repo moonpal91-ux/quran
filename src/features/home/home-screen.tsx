@@ -3,8 +3,11 @@
  * تحية + بطاقة «تابع قراءتك» (آخر موضع حقيقي من قاعدة البيانات) + تقدم الورد اليومي
  * (من سجل التقدم اليومي الفعلي) + اختصارات فعّالة.
  *
- * الأقسام التي تعتمد على محتوى يُستورد لاحقًا (آية اليوم، أذكار اليوم، الخطة)
+ * الأقسام التي تعتمد على محتوى يُستورد لاحقًا (آية اليوم، أذكار اليوم)
  * لا تظهر هنا حتى تكتمل وحداتها — لا عناصر وهمية (01-6).
+ *
+ * ملاحظة (2026-10-14): بطاقة «تابع استماعك» واختصار «الاستماع» أُزيلا مع تبويب
+ * الاستماع بالكامل بطلب المستخدم.
  */
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -13,8 +16,6 @@ import { Screen, Card, SectionTitle } from '../../design-system/components';
 import { useTheme } from '../../design-system/theme';
 import { fontFamilies, fontSizes, spacing, touchTarget } from '../../design-system/tokens';
 import { getSettingsRepository } from '../../repositories/settings-repository';
-import { getAudioProgressRepository } from '../../repositories/audio-progress-repository';
-import { getAudioCatalogRepository } from '../../repositories/audio-catalog-repository';
 import { getPlanRepository, PLAN_UNIT_LABELS } from '../../repositories/plan-repository';
 import type { GoalUnit, PlanProgress, ReadingPlan } from '../../database/realm/types';
 import { getSurahInfo } from '../../features/quran/quran-content';
@@ -40,13 +41,6 @@ export function HomeScreen() {
   const navigation = useNavigation<RootTabNavigation>();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ayahsToday, setAyahsToday] = useState(0);
-  // المرحلة 6 — آخر موضع استماع (قد يكون null: لا بطاقة وهمية)
-  const [lastAudio, setLastAudio] = useState<{
-    reciterId: string;
-    surahNumber: number;
-    ayahNumber: number;
-    completed: boolean;
-  } | null>(null);
   // المرحلة 7 — الخطة النشطة (قد تكون null: لا بطاقة وهمية)
   const [plan, setPlan] = useState<{ plan: ReadingPlan; progress: PlanProgress } | null>(null);
 
@@ -72,21 +66,6 @@ export function HomeScreen() {
       }
     } catch {
       setPlan(null);
-    }
-    try {
-      const last = getAudioProgressRepository().lastPlayed();
-      setLastAudio(
-        last
-          ? {
-              reciterId: last.reciterId,
-              surahNumber: last.surahNumber,
-              ayahNumber: last.ayahNumber,
-              completed: last.completed,
-            }
-          : null,
-      );
-    } catch {
-      setLastAudio(null);
     }
     const realm = getOpenAppRealm();
     const row = realm.objects('DailyProgress').filtered('id = $0', todayKey())[0] as unknown as
@@ -193,50 +172,6 @@ export function HomeScreen() {
           )}
         </Pressable>
 
-        {/* 2-ب) تابع استماعك — المرحلة 6 (لا تظهر إن لم يستمع المستخدم بعد) */}
-        {lastAudio ? (
-          <Pressable
-            onPress={() => navigation.navigate('الاستماع')}
-            style={({ pressed }) => ({
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: tokens.border,
-              backgroundColor: tokens.surface,
-              padding: 16,
-              opacity: pressed ? 0.8 : 1,
-            })}
-            accessibilityRole="button"
-          >
-            <SectionTitle>تابع استماعك</SectionTitle>
-            <Text
-              style={{
-                color: tokens.text,
-                fontSize: fontSizes.lg * fontScale,
-                fontWeight: '700',
-                fontFamily: fontFamilies.uiBold,
-              }}
-            >
-              {(() => {
-                const surah = getSurahInfo(lastAudio.surahNumber);
-                const reciter = getAudioCatalogRepository().getReciter(lastAudio.reciterId);
-                const where = surah ? surah.nameArabic : `سورة ${lastAudio.surahNumber}`;
-                const who = reciter ? ` — ${reciter.nameAr}` : '';
-                return `${where} — آية ${lastAudio.ayahNumber}${who}`;
-              })()}
-            </Text>
-            <Text
-              style={{
-                color: tokens.muted,
-                fontSize: fontSizes.sm * fontScale,
-                fontFamily: fontFamilies.ui,
-                marginTop: spacing.xs,
-              }}
-            >
-              {lastAudio.completed ? 'أتممتَ سماع هذه السورة' : 'اضغط للانتقال إلى تبويب الاستماع'}
-            </Text>
-          </Pressable>
-        ) : null}
-
         {/* 2-ج) خطتك — المرحلة 7 (لا تظهر إن لم تكن هناك خطة نشطة) */}
         {plan ? (
           <Pressable
@@ -341,7 +276,7 @@ export function HomeScreen() {
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Shortcut label="المصحف" onPress={() => navigation.navigate('المصحف')} />
           <Shortcut label="الأذكار" onPress={() => navigation.navigate('الأذكار')} />
-          <Shortcut label="الاستماع" onPress={() => navigation.navigate('الاستماع')} />
+          <Shortcut label="مكتبتي" onPress={() => navigation.navigate('مكتبتي')} />
         </View>
       </ScrollView>
     </Screen>

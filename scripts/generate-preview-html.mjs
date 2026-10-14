@@ -27,9 +27,6 @@ const readB64 = (p) => readFileSync(path.join(ROOT, p)).toString('base64');
 const quran = JSON.parse(read('content/quran-data.json'));
 const adhkar = JSON.parse(read('content/adhkar-data.json'));
 const tafsir = JSON.parse(read('content/tafsir-data.json'));
-const audioCatalog = existsSync(path.join(ROOT, 'content/audio-catalog.json'))
-  ? JSON.parse(read('content/audio-catalog.json'))
-  : { manifest: {}, reciters: [], bitrates: [] };
 
 const surahs = quran.surahs.map((s) => ({
   n: s.number, name: s.nameArabic, count: s.ayahCount, type: s.revelationType,
@@ -49,10 +46,6 @@ const TAFSIR_SAMPLE_KEYS = [
 const tafsirSample = {};
 for (const k of TAFSIR_SAMPLE_KEYS) if (tafsir.tafsir[k]) tafsirSample[k] = tafsir.tafsir[k];
 const gaps = tafsir.gaps ?? {};
-
-const reciters = audioCatalog.reciters.map((r) => ({
-  id: r.id, name: r.nameAr, style: r.styleAr, kbps: Number(r.defaultBitrate), note: r.notes,
-}));
 
 const categories = adhkar.categories.map((c) => ({ id: c.id, name: c.name }));
 const adhkarItems = adhkar.items.map((i) => ({
@@ -173,9 +166,10 @@ input[type=number]{background:var(--card);color:var(--text);border:1px solid var
     (نص Tanzil Uthmani v1.1 بايت‑ببايت، الأذكار من حصن المسلم، عيّنات من تفسير ابن كثير والبغوي)
     ومن نظام التصميم في <code>src/design-system/tokens.ts</code>.<br>
     الغرض: رؤية الشاشات والمحتوى الحقيقي في المتصفح (المصدر الوحيد للنص: الحزم المعتمدة).
-    التبويبات الخمسة معروضة — <b>الاستماع</b> بواجهته الحقيقية وفهرس القرّاء الموثّق
-    (أسماء ومعرّفات منسوخة من مصدرها). <b>ليست التطبيق الفعلي</b>: قاعدة البيانات (Realm)
-    والتنزيل والتشغيل الفعلي تعمل داخل التطبيق على الجهاز فقط.
+    التبويبات الأربعة معروضة (الرئيسية · المصحف · الأذكار · مكتبتي). تبويب «الاستماع»
+    <b>أُزيل بالكامل</b> من التطبيق بطلب المستخدم في 2026-10-14 (كان يعطي شاشة بيضاء).
+    <b>ليست التطبيق الفعلي</b>: قاعدة البيانات (Realm) والخطط الفعلية تعمل داخل
+    التطبيق على الجهاز فقط.
   </p>
   <div class="phone" id="phone">
     <div class="bar"><span id="title">الرئيسية</span><span class="sub" id="subtitle"></span></div>
@@ -191,16 +185,6 @@ input[type=number]{background:var(--card);color:var(--text);border:1px solid var
 const Q = ${json({ surahs, ayahs, manifest: quran.manifest, gaps })};
 const T = ${json({ tafsir: tafsirSample, sources: tafsir.sources ?? [], note: 'عيّنة من حزمة التفسير' })};
 const A = ${json({ categories: categories, items: adhkarItems })};
-const R = ${json({
-  reciters: reciters,
-  manifest: {
-    sourceName: audioCatalog.manifest.sourceName ?? '',
-    sourceUrl: audioCatalog.manifest.sourceUrl ?? '',
-    status: audioCatalog.manifest.verification?.status ?? 'unverified',
-    licenseNote: audioCatalog.manifest.licenseNote ?? '',
-    rawSha256: audioCatalog.manifest.rawSha256 ?? '',
-  },
-})};
 const THEMES = ${json(themes)};
 const BOARDS = ${json(mushafBg)};
 const BOARD_COLORS = ${json({
@@ -218,7 +202,6 @@ const TABS = [
   { id:'home',    label:'الرئيسية', icon:'M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z' },
   { id:'mushaf',  label:'المصحف',  icon:'M4 5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-2zm12-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2z' },
   { id:'adhkar',  label:'الأذكار', icon:'M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10z' },
-  { id:'audio',   label:'الاستماع',icon:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0-13v4m0 12v4M3 12h4m10 0h4' },
   { id:'library', label:'مكتبتي',  icon:'M4 4h7v16H4zm9 0h7v16h-7z' },
 ];
 const PLAN_PRESETS = [
@@ -233,7 +216,6 @@ const UNIT_LABELS = { ayahs:'آية', juz:'جزء', adhkar:'ذكر', days:'يو�
 const AYAHS_PER_JUZ = 6236 / 30;
 let state = { tab:'home', surah:null, category:null, theme:'light', fs:100, quranFs:150, board:'theme',
               favs:new Set(), marks:new Set(), counts:{}, search:'',
-              audio:{ reciter:R.reciters[0] ? R.reciters[0].id : null, mode:'surah', surah:1, playing:false, downloaded:new Set() },
               plan:{ preset:PLAN_PRESETS[0].id, unit:'ayahs', goal:6236, days:30 } };
 
 function applyTheme(){
@@ -352,69 +334,6 @@ function viewAdhkar(){
       </div></div>\`;}).join('')}\`;
 }
 
-function viewAudio(){
-  const a = state.audio;
-  const reciter = R.reciters.find(x=>x.id===a.reciter) || R.reciters[0];
-  const surah = Q.surahs.find(s=>s.n===a.surah) || Q.surahs[0];
-  return \`
-  <div class="card">
-    <p class="h">القارئ</p>
-    <div class="chips">\${R.reciters.map(r=>\`<button class="chip \${r.id===a.reciter?'on':''}" onclick="pickReciter('\${r.id}')">\${r.name}</button>\`).join('')}</div>
-    <p class="muted">\${reciter.style} · \${ar(reciter.kbps)} kbps · المصدر: cdn.islamic.network</p>
-    \${reciter.note ? '<p class="muted">ملاحظة المصدر: '+reciter.note+'</p>' : ''}
-  </div>
-
-  <div class="card">
-    <p class="h">نمط الملفات</p>
-    <div class="chips">
-      <button class="chip \${a.mode==='surah'?'on':''}" onclick="setMode('surah')">سورة كاملة</button>
-      <button class="chip \${a.mode==='ayah'?'on':''}" onclick="setMode('ayah')">آية بآية</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <p class="h">المشغّل</p>
-    <p class="muted">\${surah.name} — \${ar(surah.count)} آية</p>
-    <div class="player">
-      <button class="chip" onclick="audioPrev()">السابق</button>
-      <button class="btn" onclick="audioToggle()">\${a.playing?'إيقاف':'تشغيل'}</button>
-      <button class="chip" onclick="audioNext()">التالي</button>
-    </div>
-    <div class="bar2"><div class="fill" style="width:\${a.playing?'35':'0'}%"></div></div>
-    <p class="muted">التشغيل الفعلي (ملف محلي أو بث مباشر) يعمل داخل التطبيق على الجهاز — هذه معاينة للواجهة فقط.</p>
-  </div>
-
-  <div class="card">
-    <p class="h">السور</p>
-    \${Q.surahs.slice(0,20).map(s=>\`<div class="row" style="justify-content:space-between">
-      <div><span class="name">\${ar(s.n)}. \${s.name}</span> <span class="muted">\${ar(s.count)} آية</span></div>
-      <div class="row">
-        <button class="chip" onclick="playSurah(\${s.n})">تشغيل</button>
-        <button class="chip" onclick="toggleDownload(\${s.n})">\${a.downloaded.has(s.n)?'حذف':'تنزيل'}</button>
-      </div></div>\`).join('')}
-    <p class="muted">يُعرض أول ٢٠ سورة في المعاينة (القائمة كاملة داخل التطبيق).</p>
-  </div>
-
-  <div class="card">
-    <p class="h">المصدر والترخيص</p>
-    <p class="muted">\${R.manifest.sourceName} — حالة التحقق: \${R.manifest.status==='verified'?'روابط مُختبرة':'لم تُختبر الروابط آليًا بعد'}</p>
-    <p class="muted">\${R.manifest.licenseNote}</p>
-    <p class="muted">بصمة المادة الخام: <code>\${String(R.manifest.rawSha256).slice(0,16)}…</code></p>
-  </div>\`;
-}
-
-function pickReciter(id){ state.audio.reciter = id; render(); }
-function setMode(m){ state.audio.mode = m; render(); }
-function playSurah(n){ state.audio.surah = n; state.audio.playing = true; render(); }
-function audioToggle(){ state.audio.playing = !state.audio.playing; render(); }
-function audioNext(){ const n = Math.min(114, state.audio.surah + 1); state.audio.surah = n; render(); }
-function audioPrev(){ const n = Math.max(1, state.audio.surah - 1); state.audio.surah = n; render(); }
-function toggleDownload(n){
-  const d = state.audio.downloaded;
-  if (d.has(n)) d.delete(n); else d.add(n);
-  render();
-}
-
 function viewLibrary(){
   const rows = [
     ['العلامات المرجعية','تسمية وحذف — تُقرأ من Realm على الجهاز'],
@@ -506,7 +425,7 @@ function openAyah(s,a){
 function closeModal(){ el('modal').classList.remove('on'); }
 el('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') closeModal(); });
 
-const TITLES = { home:'الرئيسية', mushaf:'المصحف', adhkar:'الأذكار', audio:'الاستماع', library:'مكتبتي' };
+const TITLES = { home:'الرئيسية', mushaf:'المصحف', adhkar:'الأذكار', library:'مكتبتي' };
 function render(keepFocus){
   renderTabs();
   const v = el('view');
@@ -517,7 +436,6 @@ function render(keepFocus){
   v.innerHTML = state.tab==='home' ? viewHome()
     : state.tab==='mushaf' ? viewMushaf()
     : state.tab==='adhkar' ? viewAdhkar()
-    : state.tab==='audio' ? viewAudio()
     : viewLibrary();
   v.scrollTop = scroll;
   if (keepFocus){ const i=document.getElementById('q'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }

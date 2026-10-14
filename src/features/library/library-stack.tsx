@@ -1,6 +1,9 @@
 /**
- * «مكتبتي» — Stack: العلامات | المفضلة | الملاحظات | الخطط | التنزيلات | الإعدادات | حول التطبيق
+ * «مكتبتي» — Stack: العلامات | المفضلة | الملاحظات | سجل القراءة | الخطط | الإعدادات | حول التطبيق
  * (01-PRODUCT-SPEC §6)
+ *
+ * ملاحظة (2026-10-14): «التنزيلات» أُزيلت مع تبويب الاستماع — كانت شاشتها لإدارة
+ * ملفات التلاوة فقط، ولا تبقى شاشة بلا وظيفة (لا أزرار وهمية).
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,7 +14,6 @@ import { FavoritesScreen } from './favorites-screen';
 import { NotesScreen } from './notes-screen';
 import { SessionsScreen } from './sessions-screen';
 import { PlansScreen } from './plans-screen';
-import { DownloadsScreen } from './downloads-screen';
 import { SettingsScreen } from './settings-screen';
 import { AboutScreen } from './about-screen';
 
@@ -22,7 +24,6 @@ export type LibraryStackParamList = {
   Notes: undefined;
   Sessions: undefined;
   Plans: undefined;
-  Downloads: undefined;
   Settings: undefined;
   About: undefined;
 };
@@ -52,7 +53,6 @@ export function LibraryStack() {
       <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'الملاحظات' }} />
       <Stack.Screen name="Sessions" component={SessionsScreen} options={{ title: 'سجل القراءة' }} />
       <Stack.Screen name="Plans" component={PlansScreen} options={{ title: 'الخطط' }} />
-      <Stack.Screen name="Downloads" component={DownloadsScreen} options={{ title: 'التنزيلات' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'الإعدادات' }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: 'حول التطبيق' }} />
     </Stack.Navigator>
