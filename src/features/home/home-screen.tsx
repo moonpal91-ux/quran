@@ -15,6 +15,8 @@ import { fontFamilies, fontSizes, spacing, touchTarget } from '../../design-syst
 import { getSettingsRepository } from '../../repositories/settings-repository';
 import { getAudioProgressRepository } from '../../repositories/audio-progress-repository';
 import { getAudioCatalogRepository } from '../../repositories/audio-catalog-repository';
+import { getPlanRepository, PLAN_UNIT_LABELS } from '../../repositories/plan-repository';
+import type { GoalUnit, PlanProgress, ReadingPlan } from '../../database/realm/types';
 import { getSurahInfo } from '../../features/quran/quran-content';
 import { getOpenAppRealm } from '../../database/realm/realm';
 import type { AppSettings } from '../../database/realm/types';
@@ -45,10 +47,32 @@ export function HomeScreen() {
     ayahNumber: number;
     completed: boolean;
   } | null>(null);
+  // المرحلة 7 — الخطة النشطة (قد تكون null: لا بطاقة وهمية)
+  const [plan, setPlan] = useState<{ plan: ReadingPlan; progress: PlanProgress } | null>(null);
+
+  /** تنسيق رقم بوحدة الخطة (الأجزاء بمنزلة عشرية واحدة) */
+  function formatUnit(n: number, unit: GoalUnit): string {
+    if (unit === 'juz') {
+      return `${(Math.round(n * 10) / 10).toLocaleString('ar-EG')} ${PLAN_UNIT_LABELS[unit]}`;
+    }
+    return `${Math.round(n).toLocaleString('ar-EG')} ${PLAN_UNIT_LABELS[unit] ?? unit}`;
+  }
 
   const load = useCallback(async () => {
     const s = await getSettingsRepository().getSettings();
     setSettings(s);
+    // المرحلة 7 — أول خطة نشطة (الإنجاز من السجلات الفعلية فقط)
+    try {
+      const active = getPlanRepository().activePlans();
+      if (active.length > 0) {
+        const first = active[0];
+        setPlan({ plan: first, progress: getPlanRepository().progress(first) });
+      } else {
+        setPlan(null);
+      }
+    } catch {
+      setPlan(null);
+    }
     try {
       const last = getAudioProgressRepository().lastPlayed();
       setLastAudio(
@@ -210,6 +234,64 @@ export function HomeScreen() {
             >
               {lastAudio.completed ? 'أتممتَ سماع هذه السورة' : 'اضغط للانتقال إلى تبويب الاستماع'}
             </Text>
+          </Pressable>
+        ) : null}
+
+        {/* 2-ج) خطتك — المرحلة 7 (لا تظهر إن لم تكن هناك خطة نشطة) */}
+        {plan ? (
+          <Pressable
+            onPress={() => navigation.navigate('مكتبتي', { screen: 'Plans' } as never)}
+            style={({ pressed }) => ({
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: tokens.border,
+              backgroundColor: tokens.surface,
+              padding: 16,
+              opacity: pressed ? 0.8 : 1,
+            })}
+            accessibilityRole="button"
+          >
+            <SectionTitle>خطتك</SectionTitle>
+            <Text
+              style={{
+                color: tokens.text,
+                fontSize: fontSizes.lg * fontScale,
+                fontWeight: '700',
+                fontFamily: fontFamilies.uiBold,
+              }}
+            >
+              {plan.plan.title}
+            </Text>
+            <Text
+              style={{
+                color: tokens.muted,
+                fontSize: fontSizes.sm * fontScale,
+                fontFamily: fontFamilies.ui,
+                marginTop: spacing.xs,
+              }}
+            >
+              {formatUnit(plan.progress.done, plan.progress.unit)} من{' '}
+              {formatUnit(plan.progress.goal, plan.progress.unit)} · حصة اليوم:{' '}
+              {formatUnit(plan.progress.dailyTarget, plan.progress.unit)} · أنجزت اليوم:{' '}
+              {formatUnit(plan.progress.todayDone, plan.progress.unit)}
+            </Text>
+            <View
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: tokens.border,
+                marginTop: spacing.sm,
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  height: '100%',
+                  width: `${Math.max(0, Math.min(100, plan.progress.percent))}%`,
+                  backgroundColor: tokens.primary,
+                }}
+              />
+            </View>
           </Pressable>
         ) : null}
 

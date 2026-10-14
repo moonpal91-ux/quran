@@ -12,8 +12,13 @@ export type ReadingMode = 'continuous' | 'mushaf-page';
 /** لون صفحة المصحف (خلفية مريحة للعين): يتبع السمة | رَقّ | ليل | غابة */
 export type MushafBg = 'theme' | 'parchment' | 'night' | 'forest';
 
-/** وحدة الهدف اليومي */
-export type GoalUnit = 'pages' | 'ayahs' | 'juz';
+/**
+ * وحدة الهدف اليومي.
+ * ملاحظة المرحلة 7: أُضيفت `adhkar` (عدد الأذكار المكتملة) و`days` (أيام المواظبة).
+ * `pages` **غير مستخدمة في الخطط**: `DailyProgress.pagesRead` يبقى صفرًا إلى أن
+ * يأتي نمط عرض الصفحات (مُوثَّق في مستودع الجلسات) — ولا تُقاس خطط على رقم معدوم.
+ */
+export type GoalUnit = 'pages' | 'ayahs' | 'juz' | 'adhkar' | 'days';
 
 /** نوع الخطة */
 export type PlanType = 'khatmah' | 'custom' | 'memorization' | 'review';
@@ -78,6 +83,37 @@ export interface AudioProgress {
   positionMs: number;
   completed: boolean;
   updatedAt: Date;
+}
+
+/**
+ * تقدّم خطة — كله **مقيس من السجلات الفعلية**، لا رقم يُدخله المستخدم.
+ * القاعدة (01-6): لا تحديد يدوي للإنجاز؛ إن لم تُسجَّل قراءة/ذكر، يبقى `done` صفرًا.
+ */
+export interface PlanProgress {
+  planId: string;
+  unit: GoalUnit;
+  goal: number;
+  /** المنجَز فعليًا منذ بداية الخطة (بنفس الوحدة) */
+  done: number;
+  /** 0..100 */
+  percent: number;
+  totalDays: number;
+  daysElapsed: number;
+  daysLeft: number;
+  /** الحصة اليومية = ceil(الهدف ÷ عدد الأيام) */
+  dailyTarget: number;
+  /** إنجاز اليوم الفعلي */
+  todayDone: number;
+  /** ما كان يُفترض إنجازه حتى نهاية اليوم */
+  expectedByToday: number;
+  /** المنجَز ≥ المتوقع */
+  onTrack: boolean;
+  remaining: number;
+  /** المعدل المطلوب يوميًا لإنهاء الباقي في الأيام المتبقية (0 إن انتهت المدة) */
+  pacePerDay: number;
+  finished: boolean;
+  /** التاريخ المتوقع للإنهاء بالمعدل الحالي (null إن لم يبدأ) */
+  projectedEndDate: Date | null;
 }
 
 export interface Bookmark {

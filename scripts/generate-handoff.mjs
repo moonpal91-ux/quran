@@ -89,7 +89,7 @@ const GROUPS = [
     'src/repositories/quran-qa-repository.ts', 'src/repositories/reading-session-repository.ts',
     'src/repositories/reading-session-tracker.ts', 'src/repositories/settings-repository.ts',
     'src/repositories/audio-catalog-repository.ts', 'src/repositories/audio-download-repository.ts',
-    'src/repositories/audio-progress-repository.ts',
+    'src/repositories/audio-progress-repository.ts', 'src/repositories/plan-repository.ts',
   ]],
   ['8.6) src/features (الشاشات والتبويبات)', [
     'src/features/home/home-screen.tsx',
@@ -97,17 +97,17 @@ const GROUPS = [
     'src/features/quran/surah-screen.tsx', 'src/features/quran/quran-content.ts',
     'src/features/adhkar/adhkar-screen.tsx',
     'src/features/audio/audio-screen.tsx', 'src/features/audio/audio-downloader.ts',
-    'src/features/audio/use-audio-player.ts',
+    'src/features/audio/use-audio-player.ts', 'src/features/library/plans-screen.tsx',
     'src/features/library/library-stack.tsx', 'src/features/library/library-home-screen.tsx',
     'src/features/library/bookmarks-screen.tsx', 'src/features/library/favorites-screen.tsx',
     'src/features/library/notes-screen.tsx', 'src/features/library/sessions-screen.tsx',
     'src/features/library/plans-screen.tsx', 'src/features/library/downloads-screen.tsx',
     'src/features/library/settings-screen.tsx', 'src/features/library/about-screen.tsx',
   ]],
-  ['8.7) tests (حزم الاختبارات — 207 فحصًا في 7 ملفات: 155 + 52 للمرحلة 6)', [
+  ['8.7) tests (حزم الاختبارات — 262 فحصًا في 8 ملفات: 155 + 52 للاستماع + 55 للخطط)', [
     'tests/realm-stage0.test.ts', 'tests/repositories-stage1.test.ts', 'tests/quran-stage2.test.ts',
     'tests/library-stage3.test.ts', 'tests/tafsir-stage4.test.ts', 'tests/adhkar-stage5.test.ts',
-    'tests/audio-stage6.test.ts',
+    'tests/audio-stage6.test.ts', 'tests/plans-stage7.test.ts',
   ]],
   ['8.8) scripts (بوابات الاستيراد والتحقق)', [
     'scripts/bootstrap-rebuild.mjs', 'scripts/import-quran.mjs', 'scripts/validate-quran.mjs',
@@ -143,6 +143,9 @@ const GROUPS = [
     'content/refs/adhkar/manifest.json', 'content/refs/adhkar/LICENSE_seen_arabic.txt',
     'content/refs/tafsir/manifest.sha256',
     'content/AUDIO-CATALOG.md',
+  ]],
+  ['8.14) برومبت بدء محادثة جديدة', [
+    'PROMPT-NEW-SESSION.md',
   ]],
 ];
 
@@ -185,14 +188,15 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
 - **المشروع:** رفيق القرآن الكريم — تطبيق Expo/React Native (RTL، عربي افتراضيًا)
 - **حقوق المصمم والمطور:** إيهاب عجور أبو الأمير
 - **تاريخ هذا التسليم:** ${TODAY}
-- **آخر مرحلة مغلقة:** المرحلة 6 — الاستماع (commit \`1b0c41b\`)
-- **حالة الاختبارات:** \`npm run test:realm\` = **207/207** (155 + 52 للمرحلة 6) — TSC نظيف
+- **آخر مرحلة مغلقة:** المرحلة 7 — الخطط (commit \`HEAD\` — يُحدَّث عند كل تسليم)
+- **حالة الاختبارات:** \`npm run test:realm\` = **262/262** (155 + 52 للاستماع + 55 للخطط) — TSC نظيف
 - **حالة مساحة العمل (${TODAY}):** مُستعادة ومُتحقَّق منها بالكامل — \`node scripts/bootstrap-rebuild.mjs\` = **21/21**
 - **الوحدة الأصلية لـ Realm:** أُعيد بناؤها في هذه الجلسة من المصدر عبر \`tools/build-realm-node.sh\`
   → \`tools/realm-prebuilds/linux-x64/realm.node\` (17.4MB) — الاختبارات 155/155 بها.
-- **حزم التسليم الأربعة:** \`HANDOFF-*.md\` (هذا الملف: 110 ملفًا بشيفرتها الكاملة) +
-  \`quran-companion-*.zip\` (439 ملفًا) + \`app-preview.html\` (معاينة بمحتوى حقيقي) +
-  \`pwa-app.html\` (التطبيق كـ PWA في ملف واحد) — تُنتَج بالسكربتات في §7.
+- **حزم التسليم الخمسة:** \`HANDOFF-*.md\` (هذا الملف: كل ملف بشيفرته الكاملة) +
+  \`quran-companion-*.zip\` (كل الملفات) + \`app-preview.html\` (معاينة بمحتوى حقيقي) +
+  \`pwa-app.html\` (التطبيق كـ PWA في ملف واحد) +
+  \`PROMPT-NEW-SESSION.md\` (برومبت جاهز لبدء محادثة جديدة) — تُنتَج بالسكربتات في §7.
 - **PWA:** \`npm run build:pwa\` ينتج تطبيق ويب قابل للتثبيت يعمل أوفلاين (انظر §8.13 و\`docs/PWA.md\`).
 
 ### لماذا المعاينة 2.6MB؟ (سؤال متكرر — الجواب مقيس)
@@ -225,7 +229,8 @@ let md = `# دليل التسليم الشامل — رفيق القرآن ال�
 | 3 | المكتبة: جلسات القراءة R1–R6 + سجل القراءة + الورد من DailyProgress + تسمية/مفضلة/ملاحظات | 104 إجمالي | \`daea9b7\` |
 | 4 | التفسير (ابن كثير + البغوي) + 31 فجوة موثقة «لا يتوفر» + شارة العثماني + 4 لوحات + ترحيل Realm 1→2 | 137 إجمالي | \`8d1fab6\` |
 | 5 | الأذكار: حصن المسلم (345/135) بتحقق مزدوج (12/12 قرآن == Tanzil + 29/34 MIT) + عدّادات Realm | **155 إجمالي** | \`9b98f3b\` |
-| 6 | الاستماع: فهرس 13 قارئًا من مصدر موثّق (حتمي، بلا شبكة) + ترحيل مخطط 2→3 (AudioProgress) + مشغّل expo-audio + تنزيل/حذف + آخر موضع استماع + شاشة تنزيلات | **207 إجمالي** (155 + 52) | هذا الفرع |
+| 6 | الاستماع: فهرس 13 قارئًا من مصدر موثّق (حتمي، بلا شبكة) + ترحيل مخطط 2→3 (AudioProgress) + مشغّل expo-audio + تنزيل/حذف + آخر موضع استماع + شاشة تنزيلات | 207 (155 + 52) | هذا الفرع |
+| 7 | الخطط: قوالب ختمة/ورد/مواظبة + حصة يومية محسوبة + **إنجاز مقيس من السجلات فقط (لا إدخال يدوي)** + شاشة كاملة + بطاقة في الرئيسية | **262 إجمالي** (207 + 55) | هذا الفرع |
 | PWA | تطبيق ويب قابل للتثبيت: manifest + عامل خدمة أوفلاين + أيقونات + \`build:pwa\` + ملف واحد \`pwa-app.html\` | — | هذا الفرع |
 | أيقونات | الأصول الست (icon/splash/adaptive/favicon) بتصميم المشروع + أيقونات PWA | — | هذا الفرع |
 | استعادة | ${TODAY}: استعادة كاملة من الأرشيف + تحقق بصمات + \`bootstrap-rebuild.mjs\` + إعادة إنتاج الحزم | 155/155 | هذا الفرع |
@@ -242,7 +247,7 @@ npm install
 node scripts/bootstrap-rebuild.mjs          # 20/20 — يفحص البنية والبصمات ويعيد بناء الحزم
 node scripts/bootstrap-rebuild.mjs --check-only   # تحقق فقط بلا كتابة
 
-# 2) اختبارات (Node + Realm حقيقي) — 207 فحصًا في 7 ملفات (155 قبل المرحلة 6 + 52 لها):
+# 2) اختبارات (Node + Realm حقيقي) — 262 فحصًا في 8 ملفات (155 + 52 للاستماع + 55 للخطط):
 npm run test:realm
 
 # 3) فحص النص القرآني الخام (18/18):
@@ -264,10 +269,11 @@ cd dist && python3 -m http.server 8081 --bind 0.0.0.0
 # أو اختصارًا: npm run build:pwa && npm run serve:pwa
 
 # 7) حزم التسليم الأربعة:
-node scripts/generate-handoff.mjs        # HANDOFF-2026-10-13.md
+node scripts/generate-handoff.mjs        # HANDOFF-<تاريخ اليوم>.md
 node scripts/generate-preview-html.mjs   # app-preview.html
 node scripts/generate-pwa-html.mjs       # pwa-app.html
 bash scripts/package-archive.sh          # quran-companion-<date>.zip
+# خامسًا: PROMPT-NEW-SESSION.md — يُحدَّث يدويًا مع كل تسليم (برومبت بدء محادثة جديدة)
 \`\`\`
 
 ### 2.1) ملاحظات بيئة حرجة

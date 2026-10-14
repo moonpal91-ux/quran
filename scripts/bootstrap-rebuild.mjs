@@ -195,6 +195,7 @@ console.log('— [1] بنية المستودع (كل ملف في HANDOFF §8) �
     'src/features/audio/audio-screen.tsx',    // شاشة الاستماع كاملة
     'src/features/home/home-screen.tsx',      // + بطاقة «تابع استماعك»
     'src/features/library/downloads-screen.tsx', // شاشة التنزيلات كاملة
+    'src/features/library/plans-screen.tsx',    // شاشة الخطط كاملة (المرحلة 7)
     'docs/SCREEN-MAP.md',                     // + وصف شاشات المرحلة 6
   ]);
   let missing = 0;
